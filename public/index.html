@@ -31,6 +31,14 @@
         </div>
         <div class="hero-art">
           <button class="hero-orb-button" data-open-agent aria-label="Открыть ИИ-агента: можно задать вопрос или поговорить голосом"><canvas class="orb-image live-orb" data-live-orb="hero" width="560" height="560" aria-hidden="true"></canvas></button>
+          <section class="agent-workspace" id="agent-panel" aria-labelledby="agent-title" data-mode="text" hidden>
+            <div class="agent-header"><div><strong id="agent-title" tabindex="-1">Разговор</strong><span id="agent-state" class="agent-state" role="status">Обо мне, проектах и вашей задаче</span></div><div class="agent-header-actions"><button class="agent-icon-button" id="agent-collapse" type="button" aria-label="Свернуть разговор">−</button><button class="agent-icon-button close-agent" type="button" aria-label="Завершить разговор">×</button></div></div>
+            <div class="agent-messages" id="agent-messages" aria-live="polite" aria-label="Диалог с агентом"></div>
+            <div class="voice-panel" id="voice-panel" hidden><button class="agent-interrupt" id="agent-interrupt" type="button" hidden>Перебить</button></div>
+            <p class="agent-error" id="agent-error" role="status" hidden></p>
+            <div class="agent-suggestions" id="agent-suggestions" aria-label="Темы для разговора"><button data-agent-prompt="Покажи проекты Тимура" type="button">Проекты</button><button data-agent-prompt="Расскажи, чем занимается Тимур" type="button">О Тимуре</button><button data-agent-prompt="Помоги описать мою задачу для Тимура" type="button">Моя задача</button></div>
+            <div class="agent-composer"><form id="agent-form"><label class="sr-only" for="agent-input">Ваш вопрос агенту</label><input id="agent-input" placeholder="Спросите что-нибудь…" maxlength="1500" autocomplete="off" enterkeyhint="send"><button id="agent-voice-toggle" class="agent-voice-toggle" type="button" aria-label="Поговорить голосом" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6" stroke="currentColor" stroke-width="1.6"/></svg></button><button id="agent-send" class="agent-send" aria-label="Отправить вопрос" type="submit"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></form></div>
+          </section>
           <button class="agent-invite" data-open-agent>Мой ИИ-агент — можно поговорить голосом</button>
           <p class="orb-caption">Расскажет обо мне, проектах и работе с ИИ.</p>
         </div>
@@ -81,19 +89,12 @@
   </main>
   <footer class="footer section-shell"><a class="wordmark" href="/">timuroid<span class="brand-dot">.</span></a><div><a href="/privacy">О данных</a><span>© 2026</span></div></footer>
   <button class="floating-agent" data-open-agent aria-label="Открыть ИИ-агента"><canvas class="live-orb" data-live-orb="floating" width="72" height="72" aria-hidden="true"></canvas><span>Спросить агента</span></button>
-  <dialog id="agent-dialog" class="agent-dialog" aria-labelledby="agent-title" data-mode="text">
-    <div class="agent-header"><div><strong id="agent-title">Мой ИИ-агент</strong><span class="agent-state" id="agent-state">Обо мне, проектах и вашей задаче</span></div><button class="icon-button close-agent" aria-label="Закрыть агента" autofocus>×</button></div>
-    <div id="agent-cards" class="agent-cards" aria-live="polite" aria-label="Материалы с сайта" hidden></div>
-    <div class="agent-orb-stage"><button class="agent-orb-button" id="agent-orb-toggle" aria-label="Поговорить голосом"><canvas class="live-orb" data-live-orb="panel" width="320" height="320" aria-hidden="true"></canvas></button></div>
-    <div class="agent-welcome" id="agent-welcome"><p>Что хотите узнать?</p><button class="button primary agent-talk" id="start-voice" type="button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6" stroke="currentColor" stroke-width="1.6"/></svg>Поговорить голосом</button></div>
-    <div class="agent-messages" id="agent-messages" aria-live="polite" aria-label="Диалог с агентом"></div>
-    <div class="voice-panel" id="voice-panel" hidden><h3 id="voice-status">Подключаюсь…</h3><p id="voice-caption">Можно перебить агента и задать вопрос.</p><div class="voice-actions"><button class="button primary" id="stop-voice">Завершить</button><button class="text-link" id="switch-to-text">Написать</button></div></div>
-    <p class="agent-error" id="agent-error" role="status" hidden></p>
-    <div class="agent-controls"><label class="agent-mic-control" for="agent-mic-switch"><span>Микрофон</span><input id="agent-mic-switch" type="checkbox" switch role="switch" autocomplete="off"><span id="agent-mic-state" class="agent-mic-state">Выключен</span></label></div>
-    <div class="agent-suggestion-area"><div class="agent-suggestions" id="agent-suggestions"><button data-agent-prompt="Покажи проекты Тимура" type="button">Проекты</button><button data-agent-prompt="Расскажи, чем занимается Тимур" type="button">О Тимуре</button><button data-agent-prompt="Помоги описать мою задачу для Тимура" type="button">Моя задача</button><button id="refresh-suggestions" type="button" aria-label="Другие примеры вопросов">↻</button></div></div>
-    <div class="agent-composer">
-    <div class="agent-bottom"><button class="voice-button" id="start-voice-inline" aria-label="Поговорить голосом" title="Поговорить голосом"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6" stroke="currentColor" stroke-width="1.6"/></svg></button><form id="agent-form"><label class="sr-only" for="agent-input">Ваш вопрос агенту</label><input id="agent-input" placeholder="Спросите что-нибудь…" maxlength="1500" autocomplete="off"><button class="agent-send" aria-label="Отправить вопрос" type="submit"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></form></div><p class="agent-disclaimer">Ответы ИИ стоит проверять.</p></div>
-  </dialog>
+  <section class="agent-dock" id="agent-dock" aria-label="Текущий разговор с ИИ-агентом" hidden>
+    <canvas class="live-orb" data-live-orb="dock" width="96" height="96" aria-hidden="true"></canvas>
+    <div class="agent-dock-copy"><span>Мой ИИ-агент</span><p id="agent-dock-state" role="status">Разговор продолжается</p></div>
+    <button id="agent-resume" class="agent-resume" type="button">В разговор</button>
+    <button id="agent-dock-voice" class="agent-voice-toggle" type="button" aria-label="Поговорить голосом" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6" stroke="currentColor" stroke-width="1.6"/></svg></button>
+  </section>
   <div class="tour-toast" id="tour-toast" role="status" hidden></div>
 </body>
 </html>

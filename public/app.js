@@ -51,7 +51,7 @@ function casePage(c) {
   $('#case-view').innerHTML = `<a class="case-back" href="/#cases">${arrow}Все проекты</a><div class="case-detail-heading"><span class="case-kind">${c.demo?'Демо-сценарий':'Прототип'}</span><h1>${escape(c.title)}</h1><p>${escape(c.description)}</p></div><div class="case-visual visual-${c.visual}">${visual(c)}</div><div class="detail-metric"><strong>${escape(c.metric)}</strong><p>${escape(c.metricLabel)}</p></div><div class="detail-body"><aside aria-label="Разделы кейса">${sections.map(([id,title])=>`<a href="#${id}">${title}</a>`).join('')}</aside><div>${sections.map(([id,title,content])=>`<section class="detail-section" id="${id}"><h2>${title}</h2><p>${escape(content)}</p></section>`).join('')}</div></div><div class="case-cta"><h2>Есть похожая задача?<br><span class="serif-word">Давайте обсудим.</span></h2><a class="button primary" href="/#contact">Написать Тимуру</a></div>`;
 }
 function focusDestination(section){
-  const target=section?.id==='contact'?section.querySelector('input[name="name"]'):section?.querySelector('h1,h2,h3');
+  const target=section?.querySelector('h1,h2,h3');
   if(!target)return;
   if(!target.matches('input'))target.setAttribute('tabindex','-1');
   target.focus({preventScroll:true});
@@ -61,6 +61,7 @@ function renderRoute({scroll=true,focus=false}={}) {
   state.caseId = null;
   const match = location.pathname.match(/^\/cases\/([^/]+)\/?$/);
   const c = match && site.cases.find(x=>x.id===match[1]);
+  if(c||location.pathname==='/privacy')agentModule?.collapse();
   $('#home-view').hidden = Boolean(c || location.pathname === '/privacy');
   $('#case-view').hidden = !c;
   document.body.classList.toggle('reading-case',Boolean(c));
@@ -93,9 +94,9 @@ document.addEventListener('click', async e => {
   if(!link||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey||link.target==='_blank')return;
   const url=new URL(link.href,location.origin);
   if(url.origin!==location.origin||!['/','/privacy'].includes(url.pathname)&&!url.pathname.startsWith('/cases/'))return;
-  const fromAgent=Boolean(link.closest('#agent-cards'));
-  if(url.pathname===location.pathname&&url.hash){e.preventDefault();if(fromAgent)agentModule?.minimize();$('.mobile-nav').hidden=true;$('.menu-toggle').setAttribute('aria-expanded','false');history.replaceState({...history.state,scrollY:window.scrollY},'',location.href);history.pushState({},'',url.pathname+url.hash);requestAnimationFrame(()=>{const section=document.getElementById(decodeURIComponent(url.hash.slice(1)));section?.scrollIntoView({behavior:reduced.matches?'instant':'smooth'});if(fromAgent)focusDestination(section);});return;}
-  e.preventDefault();if(fromAgent)agentModule?.minimize();navigate(url.pathname+url.hash,{focus:fromAgent});
+  const fromAgent=agentModule?.isOpen()||false;
+  if(url.pathname===location.pathname&&url.hash){e.preventDefault();if(fromAgent)agentModule?.collapse();$('.mobile-nav').hidden=true;$('.menu-toggle').setAttribute('aria-expanded','false');history.replaceState({...history.state,scrollY:window.scrollY},'',location.href);history.pushState({},'',url.pathname+url.hash);requestAnimationFrame(()=>{const section=document.getElementById(decodeURIComponent(url.hash.slice(1)));section?.scrollIntoView({behavior:reduced.matches?'instant':'smooth'});if(fromAgent)focusDestination(section);});return;}
+  e.preventDefault();if(fromAgent)agentModule?.collapse();navigate(url.pathname+url.hash,{focus:fromAgent});
 });
 $('.menu-toggle').addEventListener('click',e=>{requestHaptic(e,10);const open=$('.menu-toggle').getAttribute('aria-expanded')==='true';$('.menu-toggle').setAttribute('aria-expanded',String(!open));$('.mobile-nav').hidden=open;});
 renderRoute({scroll:Boolean(location.hash)});
@@ -106,20 +107,8 @@ const sectionObserver=new IntersectionObserver(entries=>{for(const e of entries)
 export function getContext(){return{current_page:state.page,visible_section:state.section,active_case:state.caseId,device:innerWidth<=650?'mobile':'desktop'};}
 async function openAgent(){activateOrb();window.dispatchEvent(new CustomEvent('microphone-owner',{detail:'agent'}));if(!agentModule)agentModule=await import('/agent.js');agentModule.open();}
 export function showToast(text){clearTimeout(toastTimer);$('#tour-toast').textContent=text;$('#tour-toast').hidden=false;toastTimer=setTimeout(()=>$('#tour-toast').hidden=true,6500);}
-function previewCard(title,text,label='',link='',logo=''){
-  return `<article class="agent-site-card">${logo?`<img src="${escape(logo)}" alt="">`:''}${label?`<span class="preview-label">${escape(label)}</span>`:''}<h3>${escape(title)}</h3><p>${escape(text)}</p>${link?`<a class="agent-card-link" href="${escape(link)}">Посмотреть на сайте</a>`:''}</article>`;
-}
-function previewSection(target){
-  if(target==='home')return ['Тимур Кирибаев',previewCard(site.profile.description,site.profile.about,'','/#experience')];
-  if(target==='cases')return ['Проекты',site.cases.map(c=>previewCard(c.title,c.description,c.demo?'Демонстрационный сценарий':'Рабочий прототип',`/cases/${c.id}`)).join('')];
-  if(target==='experience')return ['Чем занимается Тимур',site.experience.map(e=>previewCard(e.title,e.description,e.place,`/#${e.id}`,e.id==='digital-steel'?e.logo:e.id==='bmstu-teaching'?'/logo-bmstu.png':'')).join('')];
-  if(target==='services')return ['Как можно поработать вместе',site.services.map(s=>previewCard(s.title,s.text,s.label,'/#services')).join('')];
-  if(target==='tools')return ['Форматы работы',site.tools.map(t=>previewCard(t.name,t.description,t.type,'/#services')).join('')];
-  if(target==='practice')return ['ИИ в повседневной работе',site.practice.map(p=>previewCard(p.title,p.description,'','/#practice')).join('')];
-  if(target==='path')return ['Опыт',site.career.filter(c=>c.current).map(c=>previewCard(c.role,c.description,c.company,'/#path',c.logo||'')).join('')];
-  if(target==='research')return ['Образование и исследования',site.education.map(e=>previewCard(e.title,e.description,'','/#research')).join('')];
-  if(target==='contact')return ['Контакты',previewCard('Напишите Тимуру','Опишите свою идею или задачу своими словами. Можно оставить сообщение на сайте или написать напрямую в Telegram.','','/#contact')];
-  return null;
+export function revealAgentHome(){
+  if(location.pathname!=='/')navigate('/');
 }
 export function executeSiteAction(action,target='',summary='') {
   const sections=['home','cases','services','experience','tools','contact','path','research','practice'];
@@ -127,14 +116,14 @@ export function executeSiteAction(action,target='',summary='') {
   if(!['show_section','show_case','show_experience','open_contact','prepare_contact_request'].includes(action))throw new Error('Неизвестное действие');
   if(action==='show_case'){
     const c=site.cases.find(c=>c.id===target);if(!c)throw new Error('Неизвестный кейс');
-    if(agentModule?.isOpen()){agentModule.presentCards(c.shortTitle,previewCard(c.title,c.description,c.demo?'Демонстрационный сценарий':'Рабочий прототип',`/cases/${c.id}`)+previewCard('Как устроен проект',c.solution,'','')+previewCard('Результат',c.result,'',''));return{ok:true,case:target,display:'conversation'};}
-    agentModule?.minimize();navigate(`/cases/${target}`);return{ok:true,page:`/cases/${target}`};
+    agentModule?.collapse();navigate(`/cases/${target}`,{focus:true});return{ok:true,page:`/cases/${target}`,display:'page'};
   }
   if(action==='show_experience'){
-    const e=site.experience.find(e=>e.id===target);if(!e)throw new Error('Неизвестная карточка опыта');
-    if(agentModule?.isOpen()){agentModule.presentCards(e.place,previewCard(e.title,e.description,e.place,`/#${e.id}`,e.id==='digital-steel'?e.logo:e.id==='bmstu-teaching'?'/logo-bmstu.png':''));return{ok:true,experience:target,display:'conversation'};}
-    agentModule?.minimize();if(location.pathname!=='/')navigate('/');
-    const card=document.getElementById(target);card.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'center'});highlight(card);return{ok:true,experience:target};
+    const experience=site.experience.find(e=>e.id===target);if(!experience)throw new Error('Неизвестная карточка опыта');
+    agentModule?.collapse();if(location.pathname!=='/')navigate('/');
+    const card=document.getElementById(target);
+    card.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});highlight(card);focusDestination(card);
+    return{ok:true,experience:target,display:'page'};
   }
   if(action==='open_contact'||action==='prepare_contact_request')target='contact';
   if(!sections.includes(target))throw new Error('Неизвестный раздел');
@@ -142,12 +131,12 @@ export function executeSiteAction(action,target='',summary='') {
     if(typeof summary!=='string'||!summary.trim()||summary.length>4000)throw new Error('Нужно описание задачи');
     $('#contact-form textarea').value=summary;$('#contact-form').dispatchEvent(new Event('input',{bubbles:true}));
   }
-  if(agentModule?.isOpen()){
-    const preview=previewSection(target);
-    if(preview){if(action==='prepare_contact_request')preview[1]=previewCard('Черновик вашей задачи',summary,'Проверьте перед отправкой','/#contact');agentModule.presentCards(...preview);return{ok:true,section:target,display:'conversation',draftPrepared:action==='prepare_contact_request'};}
-  }
-  agentModule?.minimize();if(location.pathname!=='/')navigate('/');
-  const section=document.getElementById(target);section.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});highlight(section);return{ok:true,section:target,draftPrepared:action==='prepare_contact_request'};
+  agentModule?.collapse();if(location.pathname!=='/')navigate('/');
+  const section=document.getElementById(target);section.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});highlight(section);
+  // Do not open a mobile keyboard merely because the agent showed contacts.
+  const heading=section.querySelector('h1,h2');if(heading){heading.setAttribute('tabindex','-1');heading.focus({preventScroll:true});}
+  state.section=target;window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));
+  return{ok:true,section:target,display:'page',draftPrepared:action==='prepare_contact_request'};
 }
 function highlight(el){el.classList.remove('tour-highlight');requestAnimationFrame(()=>el.classList.add('tour-highlight'));setTimeout(()=>el.classList.remove('tour-highlight'),2200);}
 
