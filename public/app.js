@@ -1,5 +1,6 @@
 import {initOrbs,refreshOrbs,activateOrb} from '/orb.js';
 import {initDictation} from '/dictation.js';
+import {requestHaptic} from '/haptics.js';
 const site = window.__SITE;
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -8,6 +9,7 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 const state = { section: 'home', caseId: null, page: location.pathname };
 let agentModule;
 let toastTimer;
+let caseAnimation;
 
 const arrow = '<svg class="arrow-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const chevron = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -16,8 +18,10 @@ function visual(c) {
   if (c.visual === 'knowledge') return `<div class="mini-window"><div class="mini-window-top">Документы команды<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="5" stroke="currentColor" stroke-width="1.6"/><path d="m14 14 5 5" stroke="currentColor" stroke-width="1.6"/></svg></div><div class="mini-query">Как оформить отпуск?</div><div class="mini-answer">Подайте заявку за 14 дней<br>до начала отпуска.</div><div class="mini-source">Правила команды · пункт 3</div></div>`;
   return `<div class="document-window"><div class="doc-heading">Сравнение условий</div><div class="doc-columns"><span></span><span>Договор А</span><span>Договор Б</span></div><div class="doc-row"><span>Срок</span><strong>30 дней</strong><strong>45 дней</strong></div><div class="doc-row"><span>Оплата</span><strong>50 / 50</strong><strong>100%</strong></div><div class="doc-highlight">Различия — на виду</div></div>`;
 }
-function renderCases(filter = 'all') {
-  $('#case-grid').innerHTML = site.cases.filter(c => filter === 'all' || c.category === filter).map(c => `<a class="case-card ${c.id==='content-workspace'?'featured':''}" href="/cases/${escape(c.id)}" aria-label="Открыть кейс: ${escape(c.shortTitle)}"><div class="case-visual visual-${c.visual}">${visual(c)}</div><div class="case-copy"><span class="case-kind">${c.demo?'Демо-сценарий':'Прототип'}</span><h3>${escape(c.title)}</h3><p>${escape(c.description)}</p><div class="case-card-foot"><span>Открыть проект</span>${arrow}</div></div></a>`).join('');
+function renderCases(filter = 'all',animate=false) {
+  const grid=$('#case-grid');caseAnimation?.cancel();
+  grid.innerHTML = site.cases.filter(c => filter === 'all' || c.category === filter).map(c => `<a class="case-card ${c.id==='content-workspace'?'featured':''}" href="/cases/${escape(c.id)}" aria-label="Открыть кейс: ${escape(c.shortTitle)}"><div class="case-visual visual-${c.visual}">${visual(c)}</div><div class="case-copy"><span class="case-kind">${c.demo?'Демо-сценарий':'Прототип'}</span><h3>${escape(c.title)}</h3><p>${escape(c.description)}</p><div class="case-card-foot"><span>Открыть проект</span>${arrow}</div></div></a>`).join('');
+  if(animate&&!reduced.matches)caseAnimation=grid.animate?.([{opacity:.3},{opacity:1}],{duration:240,easing:'ease-out'});
 }
 renderCases();
 $('#service-grid').innerHTML = site.services.map((s,i) => `<div class="service-card" data-process-stage="${i+1}"><span class="service-number">${s.number}</span><h3>${escape(s.title)}</h3><p>${escape(s.text)}</p></div>`).join('');
@@ -25,8 +29,8 @@ $('#about-description').textContent = site.profile.about;
 function roleCard(e){
   const isSteel=e.id==='digital-steel',isTeaching=e.id==='bmstu-teaching';
   if(!isSteel&&!isTeaching)return `<article class="experience-card research-role" id="${escape(e.id)}"><div><h3>${escape(e.title)}</h3><span class="role-place">${escape(e.place)}</span></div><p>${escape(e.description)}</p></article>`;
-  const media=isSteel?`<div class="steel-field" aria-hidden="true"><div class="steel-field-grid"></div><div class="steel-beam"></div><span>ИИ-решения для промышленности</span></div>`:`<div class="teaching-media"><video controls playsinline preload="none" poster="${escape(e.poster)}" aria-label="Фрагмент практикума «LLM на практике» в МГТУ имени Баумана"><source src="${escape(e.video)}" type="video/mp4">Ваш браузер не поддерживает видео. <a href="${escape(e.video)}">Открыть видео</a></video></div><div class="teaching-caption"><span>«LLM на практике»</span><span>Фрагмент занятия</span></div>`;
-  return `<article class="experience-card primary-role" id="${escape(e.id)}"><div class="role-brand"><img class="${isSteel?'digital-logo':''}" src="${isSteel?escape(e.logo):'/logo-bmstu.png'}" alt="${escape(e.place)}" loading="lazy" width="240" height="61"></div><h3>${escape(e.title)}</h3><p>${escape(e.description)}</p>${media}</article>`;
+  const media=isSteel?'':`<div class="teaching-media"><video controls playsinline preload="none" poster="${escape(e.poster)}" aria-label="Фрагмент практикума «LLM на практике» в МГТУ имени Баумана"><source src="${escape(e.video)}" type="video/mp4">Ваш браузер не поддерживает видео. <a href="${escape(e.video)}">Открыть видео</a></video></div><div class="teaching-caption"><span>«LLM на практике»</span><span>Фрагмент занятия</span></div>`;
+  return `<article class="experience-card primary-role" id="${escape(e.id)}"><div class="role-brand"><img class="${isSteel?'digital-logo':''}" src="${isSteel?'/logo-digital-steel-light.svg':'/logo-bmstu.png'}" alt="${escape(e.place)}" loading="lazy" width="240" height="61"></div><h3>${escape(e.title)}</h3><p>${escape(e.description)}</p>${media}</article>`;
 }
 $('#experience-list').innerHTML = [...site.experience].sort((a,b)=>['digital-steel','bmstu-teaching','bmstu-research'].indexOf(a.id)-['digital-steel','bmstu-teaching','bmstu-research'].indexOf(b.id)).map(roleCard).join('');
 $('#career-list').innerHTML = [...site.career].reverse().map(c=>`<article class="career-card ${c.current?'current':''}"><span class="career-period">${escape(c.period)}</span><div class="career-content"><div class="career-brand">${c.current?'<i class="current-mark" aria-hidden="true"></i>':''}<span>${escape(c.company)}</span></div><h3>${escape(c.role)}</h3><p>${escape(c.description)}</p></div></article>`).join('');
@@ -34,16 +38,6 @@ $('#research-grid').innerHTML = site.research.map((r,i)=>r.url?`<div class="rese
 $('#education-list').innerHTML = site.education.map(e=>`<div><h3>${escape(e.title)}</h3><p>${escape(e.description)}</p></div>`).join('');
 $('#practice-grid').innerHTML = site.practice.map(p=>`<article class="practice-card"><h3>${escape(p.title)}</h3><p>${escape(p.description)}</p></article>`).join('');
 initDictation();
-// Pointer motion leaves brief code traces in the industrial illustration.
-let lastTrace=0,traceIndex=0;
-$('#experience-list').addEventListener('pointermove',e=>{
-  const field=e.target.closest('.steel-field');
-  if(!field||reduced.matches||e.pointerType==='touch'||performance.now()-lastTrace<100)return;
-  lastTrace=performance.now();const rect=field.getBoundingClientRect(),token=document.createElement('span');
-  token.className='field-token';token.textContent=['{ }','AI','<>','∑','01','→'][traceIndex++%6];
-  token.style.left=`${e.clientX-rect.left}px`;token.style.top=`${e.clientY-rect.top}px`;token.setAttribute('aria-hidden','true');
-  field.append(token);setTimeout(()=>token.remove(),850);
-},{passive:true});
 const process=$('#service-grid');
 function processProgress(e){const stage=e.target.closest('[data-process-stage]');if(stage)process.style.setProperty('--process-progress',String((Number(stage.dataset.processStage)-1)/2));}
 process.addEventListener('pointerover',processProgress,{passive:true});process.addEventListener('focusin',processProgress);
@@ -90,11 +84,11 @@ function navigate(path,{focus=false}={}) {
 window.addEventListener('popstate',()=>{renderRoute({scroll:false});requestAnimationFrame(()=>window.scrollTo({top:history.state?.scrollY??0,behavior:'instant'}));});
 document.addEventListener('click', async e => {
   const open=e.target.closest('[data-open-agent]');
-  if(open){await openAgent();return;}
+  if(open){requestHaptic(e);await openAgent();return;}
   const prompt=e.target.closest('[data-agent-prompt]');
-  if(prompt){await openAgent();agentModule.sendMessage(prompt.dataset.agentPrompt);return;}
+  if(prompt){requestHaptic(e);await openAgent();agentModule.sendMessage(prompt.dataset.agentPrompt);return;}
   const filter=e.target.closest('[data-filter]');
-  if(filter){$$('[data-filter]').forEach(b=>{b.classList.toggle('active',b===filter);b.setAttribute('aria-pressed',String(b===filter));});renderCases(filter.dataset.filter);return;}
+  if(filter){requestHaptic(e,10);if(filter.classList.contains('active'))return;$$('[data-filter]').forEach(b=>{b.classList.toggle('active',b===filter);b.setAttribute('aria-pressed',String(b===filter));});renderCases(filter.dataset.filter,true);return;}
   const link=e.target.closest('a[href]');
   if(!link||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey||link.target==='_blank')return;
   const url=new URL(link.href,location.origin);
@@ -103,7 +97,7 @@ document.addEventListener('click', async e => {
   if(url.pathname===location.pathname&&url.hash){e.preventDefault();if(fromAgent)agentModule?.minimize();$('.mobile-nav').hidden=true;$('.menu-toggle').setAttribute('aria-expanded','false');history.replaceState({...history.state,scrollY:window.scrollY},'',location.href);history.pushState({},'',url.pathname+url.hash);requestAnimationFrame(()=>{const section=document.getElementById(decodeURIComponent(url.hash.slice(1)));section?.scrollIntoView({behavior:reduced.matches?'instant':'smooth'});if(fromAgent)focusDestination(section);});return;}
   e.preventDefault();if(fromAgent)agentModule?.minimize();navigate(url.pathname+url.hash,{focus:fromAgent});
 });
-$('.menu-toggle').addEventListener('click',()=>{const open=$('.menu-toggle').getAttribute('aria-expanded')==='true';$('.menu-toggle').setAttribute('aria-expanded',String(!open));$('.mobile-nav').hidden=open;});
+$('.menu-toggle').addEventListener('click',e=>{requestHaptic(e,10);const open=$('.menu-toggle').getAttribute('aria-expanded')==='true';$('.menu-toggle').setAttribute('aria-expanded',String(!open));$('.mobile-nav').hidden=open;});
 renderRoute({scroll:Boolean(location.hash)});
 initOrbs();
 

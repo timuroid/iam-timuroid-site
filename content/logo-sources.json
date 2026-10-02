@@ -25,6 +25,8 @@
   "digitalSteel": {
     "displayName": "Цифровая сталь",
     "file": "public/logo-digital-steel.svg",
+    "darkSurfaceFile": "public/logo-digital-steel-light.svg",
+    "darkSurfaceNote": "Local SVG presentation derivative: dark wordmark fills #2B2A29 changed to #F3EDE3 for navy contrast. Geometry, transparent background and orange-red mark gradients preserved; original SVG retained.",
     "officialSite": "https://digitsteel.ru",
     "workspaceSource": "00_Система/skills/uralsteel-documents/assets/logo-colored.svg",
     "sourceSha256": "7c8115161e1e55c423dbf87f3f467597981a862c291df4eacf9ea3a2b3f0cd00",

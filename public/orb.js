@@ -1,3 +1,5 @@
+import {requestHaptic} from '/haptics.js';
+
 // A shared renderer keeps the hero, floating button and agent orb in sync.
 const fragment = `
 precision highp float;
@@ -5,22 +7,19 @@ uniform vec2 u_resolution;
 uniform float u_time;
 uniform float u_energy;
 uniform float u_impulse;
-uniform float u_hover;
+uniform float u_flash;
 uniform float u_particles;
-uniform float u_motion;
 uniform vec2 u_pointer;
 float seed(float x){return fract(sin(x*1.713+2.91)*1939.37);}
 float smoothUnion(float a,float b,float k){float h=max(k-abs(a-b),0.)/k;return min(a,b)-h*h*k*.25;}
 void main(){
   vec2 p=(2.*gl_FragCoord.xy-u_resolution)/min(u_resolution.x,u_resolution.y);
   float t=u_time;
-  float response=u_hover*u_motion;
-  vec2 tug=u_pointer*(.052*response+.015*u_impulse);
-  vec2 body=p-tug;
+  vec2 body=p;
   body*=vec2(1.+u_impulse*.052,1.-u_impulse*.046);
   float a=atan(body.y,body.x);
   float alive=.014*sin(a*3.+t*1.3)+.009*sin(a*5.-t*.94)+.004*sin(a*8.+t*1.61);
-  float radius=.675+alive+response*.014+u_energy*.026*sin(a*4.-t*2.8)+u_impulse*.038*sin(a*3.+t*4.7);
+  float radius=.675+alive+u_energy*.026*sin(a*4.-t*2.8)+u_impulse*.038*sin(a*3.+t*4.7);
   float field=length(body)-radius;
   vec2 nearest=body;
   float nearestSize=radius;
@@ -33,8 +32,8 @@ void main(){
     float angle=s*6.283185+.29*sin(t*(.46+s*.48)+f*2.07)+.11*cos(t*.83-f*1.37);
     float wave=.5+.5*sin(t*(.79+s*.55)+f*2.39);
     float away=pow(wave,2.+s*1.3);
-    float radial=min(.90,.665+(.206+s*.045+response*.027+u_energy*.026)*away+u_impulse*.044*wave);
-    vec2 center=vec2(cos(angle),sin(angle))*radial+tug*.4;
+    float radial=min(.90,.665+(.206+s*.045+u_energy*.026)*away+u_impulse*.044*wave);
+    vec2 center=vec2(cos(angle),sin(angle))*radial;
     center+=vec2(sin(t*.77+f*1.2),cos(t*1.07-f*.9))*.012*away;
     float dotRadius=.012+seed(f+8.3)*.022+u_energy*.009*wave;
     vec2 q=p-center;
@@ -61,7 +60,7 @@ void main(){
   float streakX=reflection.x*7.5+reflection.y*2.8;
   float streakY=reflection.y*14.;
   float streak=exp(-streakX*streakX-streakY*streakY);
-  color+=vec3(.72,.82,.94)*streak*(.55+u_hover*.2+u_impulse*.19);
+  color+=vec3(.72,.82,.94)*streak*(.55+u_flash*.13+u_impulse*.12);
   color+=vec3(.88,.94,1.)*pow(reflected,155.)*(.62+u_energy*.25+u_impulse*.25);
   color+=vec3(.94,.98,1.)*pow(reflected,480.)*.37;
   vec3 second=normalize(vec3(.69+.11*sin(t*1.1),-.19+.18*cos(t*.89),.51));
@@ -76,9 +75,9 @@ const vertex='attribute vec2 a_position;void main(){gl_Position=vec4(a_position,
 const modes=['idle','thinking','listening','speaking','error'];
 const reduced=matchMedia('(prefers-reduced-motion: reduce)');
 const coarse=matchMedia('(pointer: coarse)');
-let mode='idle',level=0,phase=1.8,energy=0,speed=.93,impulse=0,hover=0;
-let pointer=[0,0],smoothPointer=[0,0],hoverTarget=0;
-let frame=0,last=0,drawCount=0,settleTimer=0,lastHaptic=-Infinity;
+let mode='idle',level=0,phase=1.8,energy=0,speed=.93,impulse=0,flash=0;
+let pointerScreen=null,smoothPointer=[0,0];
+let frame=0,last=0,drawCount=0,settleTimer=0;
 let engine,targets=[],initialized=false,audioReader=null;
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
 const seed=x=>{const value=Math.sin(x*1.713+2.91)*1939.37;return value-Math.floor(value);};
@@ -102,7 +101,7 @@ function makeEngine(){
     const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
     gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
     const position=gl.getAttribLocation(program,'a_position');gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,2,gl.FLOAT,false,0,0);
-    const uniforms=Object.fromEntries(['resolution','time','energy','impulse','hover','particles','motion','pointer'].map(key=>[key,gl.getUniformLocation(program,'u_'+key)]));
+    const uniforms=Object.fromEntries(['resolution','time','energy','impulse','flash','particles','pointer'].map(key=>[key,gl.getUniformLocation(program,'u_'+key)]));
     surface.addEventListener('webglcontextlost',event=>{
       event.preventDefault();engine={surface:document.createElement('canvas'),fallback:true};schedule();
     });
@@ -121,23 +120,21 @@ function visibleTargets(){
 }
 function paintFallback(size,particles){
   const ctx=engine.surface.getContext('2d');
-  const response=reduced.matches?0:hover,effectEnergy=reduced.matches?0:energy,effectImpulse=reduced.matches?0:impulse;
-  const unit=size/2,radius=unit*(.675+response*.014);
-  const tugX=smoothPointer[0]*(.052*response+.015*effectImpulse)*unit;
-  const tugY=-smoothPointer[1]*(.052*response+.015*effectImpulse)*unit;
+  const effectEnergy=reduced.matches?0:energy,effectImpulse=reduced.matches?0:impulse;
+  const unit=size/2,radius=unit*.675;
   ctx.clearRect(0,0,size,size);ctx.save();ctx.translate(unit,unit);
   for(let i=0;i<particles;i++){
     const s=seed(i+1),a=s*Math.PI*2+.29*Math.sin(phase*(.46+s*.48)+i*2.07)+.11*Math.cos(phase*.83-i*1.37);
     const wave=.5+.5*Math.sin(phase*(.79+s*.55)+i*2.39),away=wave**(2+s*1.3);
-    const distance=unit*Math.min(.90,.665+(.206+s*.045+response*.027+effectEnergy*.026)*away+effectImpulse*.044*wave);
+    const distance=unit*Math.min(.90,.665+(.206+s*.045+effectEnergy*.026)*away+effectImpulse*.044*wave);
     const r=unit*(.012+seed(i+8.3)*.022+effectEnergy*.009*wave);
-    const x=Math.cos(a)*distance+tugX*.4+Math.sin(phase*.77+i*1.2)*unit*.012*away;
-    const y=-Math.sin(a)*distance+tugY*.4-Math.cos(phase*1.07-i*.9)*unit*.012*away;
+    const x=Math.cos(a)*distance+Math.sin(phase*.77+i*1.2)*unit*.012*away;
+    const y=-Math.sin(a)*distance-Math.cos(phase*1.07-i*.9)*unit*.012*away;
     const g=ctx.createRadialGradient(x-r*.3,y-r*.4,0,x,y,r);
     g.addColorStop(0,'#e0eaf5');g.addColorStop(.2,'#7898ba');g.addColorStop(.5,'#1b3455');g.addColorStop(1,'#071529');
     ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
   }
-  ctx.translate(tugX,tugY);ctx.scale(1/(1+effectImpulse*.052),1/(1-effectImpulse*.046));
+  ctx.scale(1/(1+effectImpulse*.052),1/(1-effectImpulse*.046));
   ctx.beginPath();
   for(let i=0;i<=128;i++){
     const a=i/128*Math.PI*2;
@@ -156,10 +153,10 @@ function paintFallback(size,particles){
   ctx.fillStyle=sheen;ctx.fillRect(-unit,-unit,size,size);
   ctx.save();ctx.translate(hx,hy);ctx.rotate(-.35);ctx.scale(1,.5);
   const gloss=ctx.createRadialGradient(0,0,0,0,0,radius*.31);
-  gloss.addColorStop(0,'#f2f7ffd9');gloss.addColorStop(.22,'#d7e9f2aa');gloss.addColorStop(.5,'#8aa9c654');gloss.addColorStop(1,'#8aa9c600');
+  gloss.addColorStop(0,`rgba(242,247,255,${.82+flash*.15})`);gloss.addColorStop(.22,'#d7e9f2aa');gloss.addColorStop(.5,'#8aa9c654');gloss.addColorStop(1,'#8aa9c600');
   ctx.fillStyle=gloss;ctx.fillRect(-radius,-radius,radius*2,radius*2);
   const core=ctx.createRadialGradient(0,0,0,0,0,radius*.085);
-  core.addColorStop(0,'#ffffffdc');core.addColorStop(1,'#ffffff00');
+  core.addColorStop(0,`rgba(255,255,255,${.85+flash*.14})`);core.addColorStop(1,'#ffffff00');
   ctx.fillStyle=core;ctx.fillRect(-radius,-radius,radius*2,radius*2);ctx.restore();
   const side=ctx.createRadialGradient(radius*.58,radius*.21,0,radius*.64,radius*.24,radius*.42);
   side.addColorStop(0,'#a5c8e573');side.addColorStop(.18,'#4d79a552');side.addColorStop(1,'#4d79a500');
@@ -169,21 +166,23 @@ function render(now,force=false){
   frame=0;if(document.hidden)return;
   const active=visibleTargets();if(!active.length){last=0;return;}
   const compact=mobile();
-  const responding=impulse>.06||hoverTarget>0||hover>.03||mode==='speaking'||mode==='listening';
+  const responding=impulse>.06||mode==='speaking'||mode==='listening';
   const interval=responding?(compact?28:20):(compact?42:32);
   if(!force&&!reduced.matches&&now-last<interval){schedule();return;}
   const dt=last?Math.min((now-last)/1000,.1):.033;last=now;
-  const desiredSpeed={idle:.93,thinking:1.68,listening:1.13,speaking:1.56,error:.55}[mode]+hoverTarget*.7;
+  const desiredSpeed={idle:.93,thinking:1.68,listening:1.13,speaking:1.56,error:.55}[mode];
   speed+=(desiredSpeed-speed)*Math.min(1,dt*5);
   try{const audio=audioReader?.(mode);if(Number.isFinite(audio))level=clamp(audio);}catch{audioReader=null;level=0;}
   const stateEnergy=mode==='thinking'?.15:mode==='listening'?.045:mode==='speaking'?.07:0;
   const desiredEnergy=Math.max(stateEnergy,level);
   energy+=(desiredEnergy-energy)*Math.min(1,dt*(desiredEnergy>energy?14:6));
   impulse*=Math.exp(-dt*4.1);
-  hover+=(hoverTarget-hover)*Math.min(1,dt*10);
-  smoothPointer=smoothPointer.map((value,i)=>value+(pointer[i]-value)*Math.min(1,dt*12));
-  if(!reduced.matches)phase+=dt*(speed+impulse*2.4);
-  else{hover=hoverTarget;smoothPointer=[...pointer];}
+  const lightTarget=pointerLightTarget(active);
+  const settling=Math.hypot(...lightTarget)<Math.hypot(...smoothPointer);
+  const lightBlend=1-Math.exp(-dt/(settling?.35:.22));
+  smoothPointer=smoothPointer.map((value,i)=>value+(lightTarget[i]-value)*lightBlend);
+  if(!reduced.matches){phase+=dt*(speed+impulse*1.1);flash*=Math.exp(-dt*7);}
+  else smoothPointer=lightTarget;
   const pixelRatio=Math.min(devicePixelRatio||1,compact?1.35:1.5),cap=compact?440:600;
   const size=Math.min(cap,Math.max(96,...active.map(({node})=>Math.ceil(node.clientWidth*pixelRatio))));
   if(engine.surface.width!==size||engine.surface.height!==size){engine.surface.width=size;engine.surface.height=size;}
@@ -193,7 +192,7 @@ function render(now,force=false){
     const{gl,uniforms}=engine;gl.viewport(0,0,size,size);
     gl.uniform2f(uniforms.resolution,size,size);gl.uniform1f(uniforms.time,phase);
     gl.uniform1f(uniforms.energy,reduced.matches?0:energy);gl.uniform1f(uniforms.impulse,reduced.matches?0:impulse);
-    gl.uniform1f(uniforms.hover,hover);gl.uniform1f(uniforms.particles,particles);gl.uniform1f(uniforms.motion,reduced.matches?0:1);gl.uniform2f(uniforms.pointer,...smoothPointer);
+    gl.uniform1f(uniforms.flash,flash);gl.uniform1f(uniforms.particles,particles);gl.uniform2f(uniforms.pointer,...smoothPointer);
     gl.drawArrays(gl.TRIANGLES,0,6);
   }
   for(const{node,ctx}of active){
@@ -208,14 +207,25 @@ function orbFromEvent(event){
   const element=event.target instanceof Element?event.target:null;
   return element?.closest('[data-live-orb]')||element?.closest('.hero-orb-button,.agent-orb-button,.floating-agent')?.querySelector('[data-live-orb]');
 }
-function pointAt(event,node){
-  const rect=node.getBoundingClientRect();if(!rect.width||!rect.height)return;
-  pointer=[clamp((event.clientX-rect.left)/rect.width*2-1,-1,1),clamp(1-(event.clientY-rect.top)/rect.height*2,-1,1)];
+function pointerLightTarget(active){
+  if(!pointerScreen)return[0,0];
+  let nearest=null;
+  for(const{node}of active){
+    const rect=node.getBoundingClientRect();if(!rect.width||!rect.height)continue;
+    const x=(pointerScreen.x-rect.left-rect.width/2)/(rect.width/2);
+    const y=(rect.top+rect.height/2-pointerScreen.y)/(rect.height/2);
+    const distance=Math.hypot(x,y);
+    if(!nearest||distance<nearest.distance)nearest={x,y,distance};
+  }
+  if(!nearest)return[0,0];
+  // Influence vanishes smoothly outside the orb, including its transparent margin.
+  const t=clamp((nearest.distance-.35)/.8),influence=1-t*t*(3-2*t);
+  return[clamp(nearest.x,-1,1)*influence*.4,clamp(nearest.y,-1,1)*influence*.4];
 }
 function pulse(){
-  impulse=1;clearTimeout(settleTimer);schedule();
+  impulse=Math.max(impulse,.55);flash=1;clearTimeout(settleTimer);schedule();
   // Reduced motion receives a stationary lighting response and one reset.
-  if(reduced.matches){hoverTarget=1;settleTimer=setTimeout(()=>{hoverTarget=0;impulse=0;schedule();},180);}
+  settleTimer=setTimeout(()=>{flash=0;if(reduced.matches)impulse=0;schedule();},180);
 }
 export function initOrbs(){
   if(initialized)return;initialized=true;engine=makeEngine();
@@ -223,27 +233,25 @@ export function initOrbs(){
   const observer=new IntersectionObserver(schedule);targets.forEach(target=>observer.observe(target.node));
   document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(frame);frame=0;last=0;}else schedule();});
   window.addEventListener('resize',schedule,{passive:true});window.addEventListener('scroll',schedule,{passive:true});
-  document.addEventListener('pointermove',event=>{const node=orbFromEvent(event);if(!node)return;pointAt(event,node);hoverTarget=1;schedule();},{passive:true});
-  document.addEventListener('pointerover',event=>{if(orbFromEvent(event)&&event.pointerType!=='touch'){hoverTarget=1;schedule();}},{passive:true});
-  document.addEventListener('pointerout',event=>{
-    const node=orbFromEvent(event);if(!node)return;
-    const button=node.closest('button');if(button&&event.relatedTarget instanceof Node&&button.contains(event.relatedTarget))return;
-    hoverTarget=0;pointer=[0,0];schedule();
+  document.addEventListener('pointermove',event=>{
+    if(event.pointerType==='touch'||event.isPrimary===false)return;
+    pointerScreen={x:event.clientX,y:event.clientY};schedule();
   },{passive:true});
-  document.addEventListener('pointerdown',event=>{const node=orbFromEvent(event);if(!node)return;pointAt(event,node);hoverTarget=1;pulse();},{passive:true});
-  document.addEventListener('pointerup',event=>{if(event.pointerType==='touch'){hoverTarget=0;pointer=[0,0];schedule();}},{passive:true});
-  document.addEventListener('pointercancel',()=>{hoverTarget=0;pointer=[0,0];schedule();},{passive:true});
+  document.addEventListener('pointerout',event=>{if(!event.relatedTarget){pointerScreen=null;schedule();}},{passive:true});
+  document.addEventListener('pointerdown',event=>{
+    if(event.pointerType==='touch')pointerScreen=null;
+    if(orbFromEvent(event))pulse();
+  },{passive:true});
+  document.addEventListener('pointercancel',()=>{pointerScreen=null;schedule();},{passive:true});
   document.addEventListener('click',event=>{
     if(!orbFromEvent(event))return;
     if(event.detail===0)pulse();
-    const now=performance.now();
-    if(event.isTrusted&&typeof navigator.vibrate==='function'&&now-lastHaptic>250){
-      lastHaptic=now;try{navigator.vibrate([14,20,24]);}catch{}
-    }
+    requestHaptic(event);
   });
+  window.addEventListener('blur',()=>{pointerScreen=null;schedule();});
   window.addEventListener('pagehide',()=>{cancelAnimationFrame(frame);clearTimeout(settleTimer);frame=0;last=0;});
   window.addEventListener('pageshow',schedule);
-  reduced.addEventListener('change',()=>{last=0;hoverTarget=0;pointer=[0,0];schedule();});
+  reduced.addEventListener('change',()=>{last=0;pointerScreen=null;smoothPointer=[0,0];schedule();});
   schedule();
 }
 export function setOrbState(next){mode=modes.includes(next)?next:'idle';document.documentElement.dataset.orbState=mode;schedule();}
@@ -251,4 +259,4 @@ export function setOrbLevel(value){level=clamp(Number(value)||0);schedule();}
 export function setOrbAudioReader(reader){audioReader=typeof reader==='function'?reader:null;if(!audioReader)level=0;schedule();}
 export function refreshOrbs(){schedule();}
 export function getOrbDiagnostics(){return{renderer:engine?.fallback?'canvas':'webgl',state:mode,frames:drawCount,energy,renderSize:engine?.surface.width,visible:visibleTargets().length,reducedMotion:reduced.matches,particles:mobile()?7:12};}
-export function activateOrb(){pointer=[0,0];pulse();}
+export function activateOrb(){pulse();}
