@@ -1,0 +1,24 @@
+{
+  "title": "iam-timuroid-site",
+  "subtitle": "Продуктовая и техническая документация",
+  "version": "рабочая версия 0.1",
+  "classification": "Для внутреннего использования",
+  "brand": "neutral",
+  "build_date": "2026-10-02",
+  "gost_status": "Рабочая версия; нормативное соответствие не подтверждено",
+  "output": "docs/iam-timuroid-site.pdf",
+  "cover": {
+    "logo_path": null,
+    "logo_alt": "Work"
+  },
+  "document_contract": "work-v1",
+  "source_policy": "numbered-only",
+  "sources": [],
+  "service_sources": [],
+  "repository_service_sources": [
+    "README.md",
+    "AGENTS.md",
+    "STATUS.md",
+    "CHANGE_HISTORY.md"
+  ]
+}

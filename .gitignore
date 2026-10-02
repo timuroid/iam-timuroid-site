@@ -20,3 +20,41 @@ data/
 .DS_Store
 Thumbs.db
 *.tar.gz
+
+# work:baseline:start
+# Work: локальные кэши, секреты и производные артефакты.
+.DS_Store
+*.py[cod]
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+node_modules/
+.next/
+dist/
+build/
+coverage/
+*.log
+*.tmp
+*.swp
+~$*
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.mock
+.openai_key
+/Источники/
+**/Источники/
+/source_docs/
+**/source_docs/
+/project_files/
+**/project_files/
+/outputs/
+/output/
+/docs/*.pdf
+.playwright-cli/
+**/.playwright-cli/
+# work:baseline:end
