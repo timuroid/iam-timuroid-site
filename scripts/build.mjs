@@ -15,8 +15,9 @@ for(const entry of await readdir(path.join(root,'public'),{withFileTypes:true}))
 }
 const html=await readFile(path.join(root,'public/index.html'),'utf8');
 const site=JSON.parse(await readFile(path.join(root,'content/site.json'),'utf8'));
+const knowledge=JSON.parse(await readFile(path.join(root,'content/agent-knowledge.json'),'utf8'));
 const worker=await readFile(path.join(root,'server/worker.mjs'),'utf8');
-const injection=`const SITE=${JSON.stringify(site)};\nconst HTML=${JSON.stringify(html.replace('<script type="module"','<!--SITE_DATA-->\n  <script type="module"'))};\nconst ASSETS=${JSON.stringify(assets)};`;
+const injection=`const SITE=${JSON.stringify(site)};\nconst AGENT_KNOWLEDGE=${JSON.stringify(knowledge)};\nconst HTML=${JSON.stringify(html.replace('<script type="module"','<!--SITE_DATA-->\n  <script type="module"'))};\nconst ASSETS=${JSON.stringify(assets)};`;
 await writeFile(path.join(root,'dist/server/index.js'),worker.replace('// ASSET_IMPORT',injection));
 await mkdir(path.join(root,'dist/server/drizzle'),{recursive:true});
 for(const file of await readdir(path.join(root,'drizzle'))){if(file.endsWith('.sql'))await copyFile(path.join(root,'drizzle',file),path.join(root,'dist/server/drizzle',file));}

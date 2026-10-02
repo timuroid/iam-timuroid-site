@@ -18,7 +18,7 @@ for(const name of (await readdir(migrationDirectory)).filter(n=>n.endsWith('.sql
   catch(error){sqlite.exec('ROLLBACK');throw error;}
 }
 const DB={prepare(sql){let parameters=[];return{bind(...values){parameters=values;return this;},async first(){return sqlite.prepare(sql).get(...parameters)||null;},async run(){return sqlite.prepare(sql).run(...parameters);}};}};
-const runtime={DB,OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_TEXT_MODEL:process.env.OPENAI_TEXT_MODEL,OPENAI_REALTIME_MODEL:process.env.OPENAI_REALTIME_MODEL};
+const runtime={DB,OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_TEXT_MODEL:process.env.OPENAI_TEXT_MODEL,OPENAI_REALTIME_MODEL:process.env.OPENAI_REALTIME_MODEL,OPENAI_REALTIME_VOICE:process.env.OPENAI_REALTIME_VOICE};
 const server=http.createServer(async(req,res)=>{
   try{
     if(await serveMedia(req,res,new URL('../dist/media/',import.meta.url)))return;

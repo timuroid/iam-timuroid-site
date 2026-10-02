@@ -75,7 +75,7 @@ const vertex='attribute vec2 a_position;void main(){gl_Position=vec4(a_position,
 const modes=['idle','thinking','listening','speaking','error'];
 const reduced=matchMedia('(prefers-reduced-motion: reduce)');
 const coarse=matchMedia('(pointer: coarse)');
-let mode='idle',level=0,phase=1.8,energy=0,speed=.93,impulse=0,flash=0;
+let mode='idle',level=0,phase=1.8,energy=0,speed=.93,tapDrive=0,impulse=0,flash=0;
 let pointerScreen=null,smoothPointer=[0,0];
 let frame=0,last=0,drawCount=0,settleTimer=0;
 let engine,targets=[],initialized=false,audioReader=null;
@@ -110,10 +110,21 @@ function makeEngine(){
 }
 function visibleTargets(){
   const modal=document.querySelector('dialog[open]');
+  const styles=new Map();
   return targets.filter(({node})=>{
     const dialog=node.closest('dialog');
     if(dialog&&!dialog.open||modal&&!dialog||node.closest('[hidden]'))return false;
     if(node.closest('.floating-agent')&&document.body.classList.contains('hero-visible'))return false;
+    // Overlay/dock presentation hides the hero and launcher through CSS rather
+    // than [hidden]. They must not enlarge the shared render or attract lighting.
+    for(let ancestor=node;ancestor;ancestor=ancestor.parentElement){
+      if(!styles.has(ancestor)){
+        const style=typeof getComputedStyle==='function'?getComputedStyle(ancestor):null;
+        styles.set(ancestor,style?{display:style.display,visibility:style.visibility}:null);
+      }
+      const style=styles.get(ancestor);
+      if(style?.display==='none'||style?.visibility==='hidden'||style?.visibility==='collapse')return false;
+    }
     const rect=node.getBoundingClientRect();
     return rect.width>0&&rect.height>0&&rect.bottom>0&&rect.top<innerHeight&&rect.right>0&&rect.left<innerWidth;
   });
@@ -166,7 +177,7 @@ function render(now,force=false){
   frame=0;if(document.hidden)return;
   const active=visibleTargets();if(!active.length){last=0;return;}
   const compact=mobile();
-  const responding=impulse>.06||mode==='speaking'||mode==='listening';
+  const responding=tapDrive>.02||impulse>.02||mode==='speaking'||mode==='listening';
   const interval=responding?(compact?28:20):(compact?42:32);
   if(!force&&!reduced.matches&&now-last<interval){schedule();return;}
   const dt=last?Math.min((now-last)/1000,.1):.033;last=now;
@@ -176,12 +187,21 @@ function render(now,force=false){
   const stateEnergy=mode==='thinking'?.15:mode==='listening'?.045:mode==='speaking'?.07:0;
   const desiredEnergy=Math.max(stateEnergy,level);
   energy+=(desiredEnergy-energy)*Math.min(1,dt*(desiredEnergy>energy?14:6));
-  impulse*=Math.exp(-dt*4.1);
+  if(!reduced.matches){
+    // A tap adds a small drive, not a jump in geometry. Ease into it quickly,
+    // then let the deformation follow the fading drive with a longer recovery.
+    tapDrive*=Math.exp(-dt*1.75);
+    impulse+=(tapDrive-impulse)*(1-Math.exp(-dt/(tapDrive>impulse?.11:.58)));
+    const targetFlash=Math.min(1,impulse/.32)*.62;
+    flash+=(targetFlash-flash)*(1-Math.exp(-dt/(targetFlash>flash?.075:.34)));
+    if(tapDrive<.0005)tapDrive=0;
+    if(impulse<.0005)impulse=0;
+  }else{tapDrive=0;impulse=0;}
   const lightTarget=pointerLightTarget(active);
   const settling=Math.hypot(...lightTarget)<Math.hypot(...smoothPointer);
   const lightBlend=1-Math.exp(-dt/(settling?.35:.22));
   smoothPointer=smoothPointer.map((value,i)=>value+(lightTarget[i]-value)*lightBlend);
-  if(!reduced.matches){phase+=dt*(speed+impulse*1.1);flash*=Math.exp(-dt*7);}
+  if(!reduced.matches)phase+=dt*(speed+impulse*.38);
   else smoothPointer=lightTarget;
   const pixelRatio=Math.min(devicePixelRatio||1,compact?1.35:1.5),cap=compact?440:600;
   const size=Math.min(cap,Math.max(96,...active.map(({node})=>Math.ceil(node.clientWidth*pixelRatio))));
@@ -223,9 +243,13 @@ function pointerLightTarget(active){
   return[clamp(nearest.x,-1,1)*influence*.4,clamp(nearest.y,-1,1)*influence*.4];
 }
 function pulse(){
-  impulse=Math.max(impulse,.55);flash=1;clearTimeout(settleTimer);schedule();
-  // Reduced motion receives a stationary lighting response and one reset.
-  settleTimer=setTimeout(()=>{flash=0;if(reduced.matches)impulse=0;schedule();},180);
+  clearTimeout(settleTimer);
+  if(reduced.matches){
+    // Reduced motion receives one subtle, stationary lighting response.
+    tapDrive=0;impulse=0;flash=.24;
+    settleTimer=setTimeout(()=>{flash=0;schedule();},260);
+  }else tapDrive=Math.max(tapDrive,.48);
+  schedule();
 }
 export function initOrbs(){
   if(initialized)return;initialized=true;engine=makeEngine();
@@ -251,7 +275,7 @@ export function initOrbs(){
   window.addEventListener('blur',()=>{pointerScreen=null;schedule();});
   window.addEventListener('pagehide',()=>{cancelAnimationFrame(frame);clearTimeout(settleTimer);frame=0;last=0;});
   window.addEventListener('pageshow',schedule);
-  reduced.addEventListener('change',()=>{last=0;pointerScreen=null;smoothPointer=[0,0];schedule();});
+  reduced.addEventListener('change',()=>{clearTimeout(settleTimer);last=0;tapDrive=0;impulse=0;flash=0;pointerScreen=null;smoothPointer=[0,0];schedule();});
   schedule();
 }
 export function setOrbState(next){mode=modes.includes(next)?next:'idle';document.documentElement.dataset.orbState=mode;schedule();}

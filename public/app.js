@@ -1,5 +1,4 @@
 import {initOrbs,refreshOrbs,activateOrb} from '/orb.js';
-import {initDictation} from '/dictation.js';
 import {requestHaptic} from '/haptics.js';
 const site = window.__SITE;
 const $ = (s, root = document) => root.querySelector(s);
@@ -10,6 +9,7 @@ const state = { section: 'home', caseId: null, page: location.pathname };
 let agentModule;
 let toastTimer;
 let caseAnimation;
+let contactFlow=false;
 
 const arrow = '<svg class="arrow-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const chevron = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -33,18 +33,17 @@ function roleCard(e){
   return `<article class="experience-card primary-role" id="${escape(e.id)}"><div class="role-brand"><img class="${isSteel?'digital-logo':''}" src="${isSteel?'/logo-digital-steel-light.svg':'/logo-bmstu.png'}" alt="${escape(e.place)}" loading="lazy" width="240" height="61"></div><h3>${escape(e.title)}</h3><p>${escape(e.description)}</p>${media}</article>`;
 }
 $('#experience-list').innerHTML = [...site.experience].sort((a,b)=>['digital-steel','bmstu-teaching','bmstu-research'].indexOf(a.id)-['digital-steel','bmstu-teaching','bmstu-research'].indexOf(b.id)).map(roleCard).join('');
-$('#career-list').innerHTML = [...site.career].reverse().map(c=>`<article class="career-card ${c.current?'current':''}"><span class="career-period">${escape(c.period)}</span><div class="career-content"><div class="career-brand">${c.current?'<i class="current-mark" aria-hidden="true"></i>':''}<span>${escape(c.company)}</span></div><h3>${escape(c.role)}</h3><p>${escape(c.description)}</p></div></article>`).join('');
+$('#career-list').innerHTML = [...site.career].reverse().map(c=>`<article class="career-card ${c.current?'current':''}" id="career-${escape(c.id)}"><span class="career-period">${escape(c.period)}</span><div class="career-content"><div class="career-brand">${c.current?'<i class="current-mark" aria-hidden="true"></i>':''}<span>${escape(c.company)}</span></div><h3>${escape(c.role)}</h3><p>${escape(c.description)}</p></div></article>`).join('');
 $('#research-grid').innerHTML = site.research.map((r,i)=>r.url?`<div class="research-reference"><a href="${escape(r.url)}" target="_blank" rel="noopener"><span class="reference-number">[${i+1}]</span><span>${escape(r.originalTitle||r.title)}</span></a><p>${escape(r.meta)}</p></div>`:`<details class="research-reference"><summary><span class="reference-number">[${i+1}]</span><span>${escape(r.originalTitle||r.title)}</span></summary><p>${escape(r.meta)}. ${escape(r.description)}</p></details>`).join('');
-$('#education-list').innerHTML = site.education.map(e=>`<div><h3>${escape(e.title)}</h3><p>${escape(e.description)}</p></div>`).join('');
+$('#education-list').innerHTML = site.education.map(e=>`<div><h3>${escape(e.title)}</h3><p>${escape(e.description)}</p>${e.practice?`<p class="education-practice">${escape(e.practice)}</p>`:''}</div>`).join('');
 $('#practice-grid').innerHTML = site.practice.map(p=>`<article class="practice-card"><h3>${escape(p.title)}</h3><p>${escape(p.description)}</p></article>`).join('');
-initDictation();
 const process=$('#service-grid');
 function processProgress(e){const stage=e.target.closest('[data-process-stage]');if(stage)process.style.setProperty('--process-progress',String((Number(stage.dataset.processStage)-1)/2));}
 process.addEventListener('pointerover',processProgress,{passive:true});process.addEventListener('focusin',processProgress);
 process.addEventListener('pointerleave',()=>process.style.setProperty('--process-progress','0'),{passive:true});
 $('#tool-grid').innerHTML = site.tools.map(t=>`<div class="tool-item"><h3>${escape(t.name)}</h3><p>${escape(t.description)}</p></div>`).join('');
-if(site.profile.telegram) $('#direct-contacts').innerHTML += `<a class="direct-contact" href="https://t.me/${encodeURIComponent(site.profile.telegram.replace('@',''))}" target="_blank" rel="noopener">Написать в Telegram</a>`;
-if(site.profile.email) $('#direct-contacts').innerHTML += `<a class="direct-contact" href="mailto:${escape(site.profile.email)}">Написать на почту</a>`;
+if(site.profile.telegram) $('#direct-contacts').innerHTML += `<a class="direct-contact" href="https://t.me/${encodeURIComponent(site.profile.telegram.replace('@',''))}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="m21 3-3.6 17.1c-.3 1.2-1 1.5-2 1L10 17l-2.6 2.5c-.3.3-.6.6-1 .6l.4-5.7L17.2 5c.5-.4-.1-.6-.7-.2L3.6 12.9l-5-1.6c-1.1-.3-1.1-1.1.2-1.6L20 2.1c1-.4 1.7.2 1  .9Z" transform="translate(1 0) scale(.95)"/></svg><span>Написать в Telegram</span></a>`;
+if(site.profile.email) $('#direct-contacts').innerHTML += `<a class="direct-contact" href="mailto:${escape(site.profile.email)}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="m4 7 8 6 8-6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg><span>Написать на почту</span></a>`;
 
 function casePage(c) {
   const sections = [['task','Задача',c.task],['contribution','Мой вклад',c.contribution],['solution','Как устроено решение',c.solution],['result','Результат',c.result],['limitations','Что важно учитывать',c.limitations]];
@@ -77,17 +76,17 @@ function renderRoute({scroll=true,focus=false}={}) {
   window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));
   refreshOrbs();
 }
-function navigate(path,{focus=false}={}) {
+function navigate(path,{focus=false,scroll=true}={}) {
   history.replaceState({...history.state,scrollY:window.scrollY},'',location.href);
   history.pushState({},'',path);
-  renderRoute({focus});
+  renderRoute({focus,scroll});
 }
 window.addEventListener('popstate',()=>{renderRoute({scroll:false});requestAnimationFrame(()=>window.scrollTo({top:history.state?.scrollY??0,behavior:'instant'}));});
 document.addEventListener('click', async e => {
   const open=e.target.closest('[data-open-agent]');
-  if(open){requestHaptic(e);await openAgent();return;}
+  if(open){requestHaptic(e);await openAgent({mode:open.dataset.agentMode||'voice',local:!open.closest('.hero-art')});return;}
   const prompt=e.target.closest('[data-agent-prompt]');
-  if(prompt){requestHaptic(e);await openAgent();agentModule.sendMessage(prompt.dataset.agentPrompt);return;}
+  if(prompt){requestHaptic(e);await openAgent({mode:'text',local:!prompt.closest('.hero-art')});agentModule.sendMessage(prompt.dataset.agentPrompt);return;}
   const filter=e.target.closest('[data-filter]');
   if(filter){requestHaptic(e,10);if(filter.classList.contains('active'))return;$$('[data-filter]').forEach(b=>{b.classList.toggle('active',b===filter);b.setAttribute('aria-pressed',String(b===filter));});renderCases(filter.dataset.filter,true);return;}
   const link=e.target.closest('a[href]');
@@ -104,39 +103,50 @@ initOrbs();
 
 const heroObserver=new IntersectionObserver(([e])=>document.body.classList.toggle('hero-visible',e.isIntersecting&&!$('#home-view').hidden),{threshold:.25});heroObserver.observe($('#home'));
 const sectionObserver=new IntersectionObserver(entries=>{for(const e of entries){if(e.isIntersecting&&!$('#home-view').hidden){state.section=e.target.id;window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));}}},{rootMargin:'-20% 0px -55% 0px'});$$('#home-view>section').forEach(s=>sectionObserver.observe(s));
-export function getContext(){return{current_page:state.page,visible_section:state.section,active_case:state.caseId,device:innerWidth<=650?'mobile':'desktop'};}
-async function openAgent(){activateOrb();window.dispatchEvent(new CustomEvent('microphone-owner',{detail:'agent'}));if(!agentModule)agentModule=await import('/agent.js');agentModule.open();}
-export function showToast(text){clearTimeout(toastTimer);$('#tour-toast').textContent=text;$('#tour-toast').hidden=false;toastTimer=setTimeout(()=>$('#tour-toast').hidden=true,6500);}
-export function revealAgentHome(){
-  if(location.pathname!=='/')navigate('/');
+function contactContext(){
+  const fields={name:$('#contact-form [name=name]').value.trim(),contact:$('#contact-form [name=contact]').value.trim(),message:$('#contact-form [name=message]').value.trim()};
+  return {contact_request:contactFlow,contact_missing:Object.keys(fields).filter(key=>!fields[key]),...(contactFlow?{contact_draft:fields}:{})};
 }
-export function executeSiteAction(action,target='',summary='') {
+export function getContext(){return{current_page:state.page,visible_section:state.section,active_case:state.caseId,device:innerWidth<=650?'mobile':'desktop',...contactContext()};}
+async function openAgent(options={}){activateOrb();if(!agentModule)agentModule=await import('/agent.js');agentModule.open(options);}
+export function showToast(text){clearTimeout(toastTimer);$('#tour-toast').textContent=text;$('#tour-toast').hidden=false;toastTimer=setTimeout(()=>$('#tour-toast').hidden=true,6500);}
+export function executeSiteAction(action,target='',summary='',draft={}) {
   const sections=['home','cases','services','experience','tools','contact','path','research','practice'];
   if(action==='none')return{ok:true};
-  if(!['show_section','show_case','show_experience','open_contact','prepare_contact_request'].includes(action))throw new Error('Неизвестное действие');
+  if(action==='cancel_contact_request'){contactFlow=false;window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));return{ok:true,contact_request:false};}
+  if(!['show_section','show_case','show_experience','show_career','begin_contact_request','open_contact','prepare_contact_request'].includes(action))throw new Error('Неизвестное действие');
   if(action==='show_case'){
     const c=site.cases.find(c=>c.id===target);if(!c)throw new Error('Неизвестный кейс');
     agentModule?.collapse();navigate(`/cases/${target}`,{focus:true});return{ok:true,page:`/cases/${target}`,display:'page'};
   }
-  if(action==='show_experience'){
-    const experience=site.experience.find(e=>e.id===target);if(!experience)throw new Error('Неизвестная карточка опыта');
-    agentModule?.collapse();if(location.pathname!=='/')navigate('/');
-    const card=document.getElementById(target);
+  if(action==='show_experience'||action==='show_career'){
+    const collection=action==='show_career'?site.career:site.experience;
+    if(!collection.some(item=>item.id===target))throw new Error('Неизвестная карточка опыта');
+    agentModule?.collapse();if(location.pathname!=='/')navigate('/',{scroll:false});
+    const card=document.getElementById(action==='show_career'?`career-${target}`:target);
     card.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});highlight(card);focusDestination(card);
-    return{ok:true,experience:target,display:'page'};
+    return{ok:true,[action==='show_career'?'career':'experience']:target,display:'page'};
   }
-  if(action==='open_contact'||action==='prepare_contact_request')target='contact';
+  if(['open_contact','prepare_contact_request','begin_contact_request'].includes(action))target='contact';
   if(!sections.includes(target))throw new Error('Неизвестный раздел');
+  if(action==='begin_contact_request')contactFlow=true;
   if(action==='prepare_contact_request'){
-    if(typeof summary!=='string'||!summary.trim()||summary.length>4000)throw new Error('Нужно описание задачи');
-    $('#contact-form textarea').value=summary;$('#contact-form').dispatchEvent(new Event('input',{bubbles:true}));
+    const fields={name:draft.name,contact:draft.contact,message:summary};
+    if(!Object.values(fields).some(value=>typeof value==='string'&&value.trim()))throw new Error('Нет данных для формы');
+    for(const [key,value] of Object.entries(fields)){
+      if(typeof value!=='string'||!value.trim())continue;
+      if(value.length>({name:100,contact:180,message:4000})[key])throw new Error('Слишком длинное поле');
+    }
+    for(const [key,value] of Object.entries(fields))if(typeof value==='string'&&value.trim())$(`#contact-form [name=${key}]`).value=value.trim();
+    contactFlow=true;$('#contact-form').dispatchEvent(new Event('input',{bubbles:true}));
   }
-  agentModule?.collapse();if(location.pathname!=='/')navigate('/');
-  const section=document.getElementById(target);section.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});highlight(section);
-  // Do not open a mobile keyboard merely because the agent showed contacts.
-  const heading=section.querySelector('h1,h2');if(heading){heading.setAttribute('tabindex','-1');heading.focus({preventScroll:true});}
+  // Updating an already visible draft does not scroll or animate the page again.
+  if(!(action==='prepare_contact_request'&&state.section==='contact'&&location.pathname==='/')){
+    agentModule?.collapse();if(location.pathname!=='/')navigate('/',{scroll:false});
+    const section=document.getElementById(target);section.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});highlight(section);focusDestination(section);
+  }
   state.section=target;window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));
-  return{ok:true,section:target,display:'page',draftPrepared:action==='prepare_contact_request'};
+  return{ok:true,section:target,display:'page',draftPrepared:action==='prepare_contact_request',...contactContext()};
 }
 function highlight(el){el.classList.remove('tour-highlight');requestAnimationFrame(()=>el.classList.add('tour-highlight'));setTimeout(()=>el.classList.remove('tour-highlight'),2200);}
 
@@ -152,7 +162,7 @@ form.addEventListener('submit',async e=>{
     const result=await r.json();if(!r.ok)throw new Error(result.error||'Не удалось сохранить запрос.');
     const current=Object.fromEntries(new FormData(form));
     const changed=['name','contact','message','consent'].some(key=>current[key]!==values[key]);
-    submitted=!changed;form.dataset.submitted=String(submitted);status.classList.add('success');
+    if(!changed)contactFlow=false;submitted=!changed;form.dataset.submitted=String(submitted);status.classList.add('success');
     if(changed){requestId=crypto.randomUUID();status.textContent='Сообщение сохранено. Изменения в форме ещё не отправлены.';button.textContent='Отправить сообщение';}
     else{status.textContent='Спасибо! Сообщение сохранено.';button.textContent='Сообщение отправлено';}
   }
@@ -162,7 +172,7 @@ form.addEventListener('submit',async e=>{
 
 if(document.modelContext?.registerTool){
   const lifecycle=new AbortController();
-  const tool={name:'navigate_timuroid',title:'Показать информацию о Тимуре',description:'Открыть раздел, кейс или карточку опыта на сайте Тимура. Не отправляет сообщения.',inputSchema:{type:'object',properties:{action:{type:'string',enum:['show_section','show_case','show_experience','open_contact']},target:{type:'string'}},required:['action'],additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:false},execute(input){if(!input||!['show_section','show_case','show_experience','open_contact'].includes(input.action))throw new Error('Недопустимое действие');return executeSiteAction(input.action,input.target||'');}};
+  const tool={name:'navigate_timuroid',title:'Показать информацию о Тимуре',description:'Открыть раздел, кейс или карточку опыта на сайте Тимура. Не отправляет сообщения.',inputSchema:{type:'object',properties:{action:{type:'string',enum:['show_section','show_case','show_experience','show_career','open_contact']},target:{type:'string'}},required:['action'],additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:false},execute(input){if(!input||!['show_section','show_case','show_experience','show_career','open_contact'].includes(input.action))throw new Error('Недопустимое действие');return executeSiteAction(input.action,input.target||'');}};
   try{Promise.resolve(document.modelContext.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{});}catch{}
   window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});
 }

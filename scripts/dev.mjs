@@ -15,7 +15,7 @@ for(const name of (await readdir('drizzle')).filter(x=>x.endsWith('.sql')).sort(
   }
 }
 const binding={prepare(sql){let params=[];return{bind(...p){params=p;return this;},async first(){return localDb.prepare(sql).get(...params)||null;},async run(){return localDb.prepare(sql).run(...params);}};}};
-const secrets={OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_TEXT_MODEL:process.env.OPENAI_TEXT_MODEL,OPENAI_REALTIME_MODEL:process.env.OPENAI_REALTIME_MODEL};
+const secrets={OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_TEXT_MODEL:process.env.OPENAI_TEXT_MODEL,OPENAI_REALTIME_MODEL:process.env.OPENAI_REALTIME_MODEL,OPENAI_REALTIME_VOICE:process.env.OPENAI_REALTIME_VOICE};
 if(process.argv.includes('--secret-stdin')){
   if(process.stdin.isTTY)process.stdin.setRawMode(true);
   const lines=createInterface({input:process.stdin,output:process.stdout,terminal:false});

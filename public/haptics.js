@@ -1,6 +1,7 @@
 // Optional tactile feedback, requested synchronously by a real user click.
-// The hidden native-switch path is a compatibility attempt, not a vibration API:
-// newer WebKit deliberately blocks its untrusted forwarded click (fc1ef83eae10).
+// Direct taps on a real native switch use the browser's own tactile feedback.
+// The hidden fallback is a compatibility attempt: newer WebKit deliberately
+// blocks its untrusted forwarded click (fc1ef83eae10).
 const handledClicks=new WeakSet();
 let lastRequest=-Infinity;
 let nativeBridge=null;
@@ -16,6 +17,50 @@ export function enhanceNativeSwitch(input){
   if(typeof HTMLInputElement==='undefined'||!(input instanceof HTMLInputElement)||input.type!=='checkbox')return false;
   input.setAttribute('switch','');
   return supportsNativeSwitch();
+}
+
+/**
+ * Opt in one microphone toggle to direct native activation. Call before binding
+ * its behavior, then bind change on the returned input. No controls are mounted
+ * automatically; unsupported browsers keep the original button and return null.
+ */
+export function mountNativeHapticToggle(button){
+  if(!supportsNativeSwitch()||typeof HTMLButtonElement==='undefined')return null;
+  if(typeof HTMLLabelElement!=='undefined'&&button instanceof HTMLLabelElement&&button.classList.contains('native-haptic-control'))return button.querySelector('input[type="checkbox"][switch]');
+  if(!(button instanceof HTMLButtonElement))return null;
+  const wrapper=document.createElement('label');
+  for(const{name,value}of [...button.attributes]){
+    if(name==='id'||name==='class'||name==='title'||name.startsWith('aria-')||name.startsWith('data-'))wrapper.setAttribute(name,value);
+  }
+  wrapper.classList.add('native-haptic-control');
+  if(!wrapper.hasAttribute('data-mic'))wrapper.dataset.mic='';
+  wrapper.style.position='relative';
+  const visual=document.createElement('span');
+  visual.className='native-haptic-visual';
+  visual.setAttribute('aria-hidden','true');
+  visual.style.cssText='display:contents;pointer-events:none;';
+  while(button.firstChild)visual.append(button.firstChild);
+  const input=document.createElement('input');
+  input.type='checkbox';
+  input.setAttribute('switch','');
+  input.setAttribute('role','switch');
+  for(const name of ['aria-label','aria-labelledby','aria-describedby','aria-controls']){
+    const value=button.getAttribute(name);
+    if(value!==null)input.setAttribute(name,value);
+  }
+  if(!input.hasAttribute('aria-label')&&!input.hasAttribute('aria-labelledby'))input.setAttribute('aria-label',button.title||visual.textContent.trim()||'Голосовое общение');
+  input.checked=button.getAttribute('aria-pressed')==='true';
+  input.disabled=button.disabled;
+  // Opacity keeps this real control in WebKit's event regions. Visibility:hidden,
+  // display:none, pointer-events:none or a programmatic click would defeat it.
+  input.style.cssText='position:absolute;inset:0;box-sizing:border-box;width:100%;height:100%;margin:0;opacity:0;appearance:auto;pointer-events:auto;z-index:2;cursor:inherit;';
+  wrapper.append(visual,input);
+  button.replaceWith(wrapper);
+  return input;
+}
+
+function isNativeSwitchControl(input){
+  return supportsNativeSwitch()&&input instanceof HTMLInputElement&&input.type==='checkbox'&&input.hasAttribute('switch')&&!input.disabled;
 }
 
 /** Remove only the optional control owned by this module. No vibration is scheduled. */
@@ -90,12 +135,18 @@ function requestNativeSwitch(event){
  * accepted a request or the native switch accepted a trusted activation; it does
  * not prove physical feedback. Native switches ignore the requested pattern and
  * can only produce their system tick. Unsupported/blocked paths return false.
+ * For a transparent control over a microphone icon, use a real focusable input
+ * with opacity:0 and appearance:auto, handle change, and keep click default
+ * activation. Do not nest that input in a button or call its .click() method.
  */
 export function requestHaptic(event,pattern=14){
   if(typeof Event==='undefined'||!(event instanceof Event)||event.type!=='click'||!event.isTrusted||handledClicks.has(event))return false;
   handledClicks.add(event);
   if(typeof navigator==='undefined'||navigator.userActivation?.isActive===false)return false;
   const now=performance.now();
+  // Native switch activation already owns the tick. Never add a second hidden
+  // switch activation or vibration request to this same real control click.
+  if(isNativeSwitchControl(event.target)&&!event.defaultPrevented){lastRequest=now;return true;}
   // A click on a label can forward a second click to its input.
   if(now-lastRequest<100)return false;
   const values=Array.isArray(pattern)?pattern:[pattern];
