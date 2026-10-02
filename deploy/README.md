@@ -21,12 +21,14 @@
 Образец службы — `timuroid.service`. Файл `compose.yml`, Dockerfile и nginx
 конфигурация остаются альтернативными шаблонами; на текущем VPS они не используются.
 
-Текущий выпуск — `20261003-agent-inline-89cba06`, исходный коммит
-`89cba06a4ae2ab89feca9a9cd2531d2ff575ad89`. Для возврата сохранён
-`/opt/timuroid/releases/20261003-polish-453050c`. Проверенный backup перед обновлением:
-`/var/lib/timuroid/backups/timuroid-before-agent-inline-89cba06.sqlite`, root 600.
+Текущий выпуск — `20261003-voice-first-441728c`, исходный коммит
+`441728cc558353a29e9b3e774a6ea91f49858bb6`. Для возврата сохранён
+`/opt/timuroid/releases/20261003-agent-inline-89cba06`. Проверенный backup перед обновлением:
+`/var/lib/timuroid/backups/timuroid-before-voice-first-441728c.sqlite`, root 600.
 Проверены активные службы, HTTPS 200/HTTP 308, новые HTML/JS/CSS, страницы кейсов,
-видео Range 206 и ответ текстового API с действием show_section/cases.
+видео Range 206 и текстовый API: show_career/whistling и prepare_contact_request.
+Архив выпуска проверен без секретов/баз; SHA256:
+`881c92d254b8847601fbf0ae70cc0d196932fddadaac8bc6e0d1c9d6ac68e8cf`.
 
 ## Обновление
 

@@ -35,17 +35,18 @@ auto_push: false
 - Синтаксис/сборка, 31 mock DOM сценарий, конфигурация, 6 реальных текстовых запросов,
   четыре голосовых шага через реальный Realtime, audio budget и HTTP delivery
   проверены. Протокольный тест генерирует аудио из текста, не захватывает микрофон.
-- Подготовлена локальная версия; публикация выполняется отдельным проверенным выпуском.
+- Новая версия опубликована; HTTPS/маршруты/медиа, хеши JS/CSS и два действия
+  текстового API на домене проверены. Все три службы активны.
 
 ## Развёртывание
 
 - Рабочий домен: https://iam.timuroid.ru; Timeweb VPS, Node.js 24.21.0,
   отдельная systemd-служба `timuroid` и существующий Caddy.
-- Активен выпуск `/opt/timuroid/releases/20261003-agent-inline-89cba06`
-  из коммита `89cba06a4ae2ab89feca9a9cd2531d2ff575ad89`. Предыдущий
-  `/opt/timuroid/releases/20261003-polish-453050c` сохранён.
+- Активен выпуск `/opt/timuroid/releases/20261003-voice-first-441728c`
+  из коммита `441728cc558353a29e9b3e774a6ea91f49858bb6`. Предыдущий
+  `/opt/timuroid/releases/20261003-agent-inline-89cba06` сохранён.
 - SQLite вне выпуска: `/var/lib/timuroid/timuroid.sqlite`. Проверенный backup
-  текущего обновления: `/var/lib/timuroid/backups/timuroid-before-agent-inline-89cba06.sqlite`, root 600.
+  текущего обновления: `/var/lib/timuroid/backups/timuroid-before-voice-first-441728c.sqlite`, root 600.
 - Ключ хранится вне репозитория; база и конфигурация сохраняются при обновлении.
 - Краткая документация актуализирована; SDD, PDF, админка и уведомления не вводились.
 
