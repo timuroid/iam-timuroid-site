@@ -1,0 +1,25 @@
+[Unit]
+Description=TIMUROID personal website
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=timuroid
+Group=timuroid
+WorkingDirectory=/opt/timuroid/current
+EnvironmentFile=/etc/timuroid.env
+Environment=NODE_ENV=production HOST=127.0.0.1 PORT=4318 DB_PATH=/var/lib/timuroid/timuroid.sqlite
+ExecStart=/opt/timuroid-node/bin/node server/node.mjs
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/timuroid
+
+[Install]
+WantedBy=multi-user.target

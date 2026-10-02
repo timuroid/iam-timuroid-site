@@ -20,14 +20,34 @@ function renderCases(filter = 'all') {
   $('#case-grid').innerHTML = site.cases.filter(c => filter === 'all' || c.category === filter).map(c => `<a class="case-card ${c.id==='content-workspace'?'featured':''}" href="/cases/${escape(c.id)}" aria-label="Открыть кейс: ${escape(c.shortTitle)}"><div class="case-visual visual-${c.visual}">${visual(c)}</div><div class="case-copy"><span class="case-kind">${c.demo?'Демо-сценарий':'Прототип'}</span><h3>${escape(c.title)}</h3><p>${escape(c.description)}</p><div class="case-card-foot"><span>Открыть проект</span>${arrow}</div></div></a>`).join('');
 }
 renderCases();
-$('#service-grid').innerHTML = site.services.map(s => `<div class="service-card"><span class="service-number">${s.number}</span><h3>${escape(s.title)}</h3><p>${escape(s.text)}</p></div>`).join('');
+$('#service-grid').innerHTML = site.services.map((s,i) => `<div class="service-card" data-process-stage="${i+1}"><span class="service-number">${s.number}</span><h3>${escape(s.title)}</h3><p>${escape(s.text)}</p></div>`).join('');
 $('#about-description').textContent = site.profile.about;
-$('#career-list').innerHTML = site.career.map(c=>`<article class="career-card ${c.current?'current':''}"><div class="career-brand">${c.logo?`<img src="${escape(c.logo)}" alt="${escape(c.company)}" loading="lazy">`:`<span>${escape(c.company)}</span>`}<span class="career-period">${escape(c.period)}</span></div><div class="career-content"><h3>${escape(c.role)}</h3><p>${escape(c.description)}</p></div></article>`).join('');
-$('#research-grid').innerHTML = site.research.map(r=>`<article class="research-card"><p class="research-meta">${escape(r.meta)}</p><h3>${escape(r.title)}</h3><p>${escape(r.description)}</p></article>`).join('');
+function roleCard(e){
+  const isSteel=e.id==='digital-steel',isTeaching=e.id==='bmstu-teaching';
+  if(!isSteel&&!isTeaching)return `<article class="experience-card research-role" id="${escape(e.id)}"><div><h3>${escape(e.title)}</h3><span class="role-place">${escape(e.place)}</span></div><p>${escape(e.description)}</p></article>`;
+  const media=isSteel?`<div class="steel-field" aria-hidden="true"><div class="steel-field-grid"></div><div class="steel-beam"></div><span>ИИ-решения для промышленности</span></div>`:`<div class="teaching-media"><video controls playsinline preload="none" poster="${escape(e.poster)}" aria-label="Фрагмент практикума «LLM на практике» в МГТУ имени Баумана"><source src="${escape(e.video)}" type="video/mp4">Ваш браузер не поддерживает видео. <a href="${escape(e.video)}">Открыть видео</a></video></div><div class="teaching-caption"><span>«LLM на практике»</span><span>Фрагмент занятия</span></div>`;
+  return `<article class="experience-card primary-role" id="${escape(e.id)}"><div class="role-brand"><img class="${isSteel?'digital-logo':''}" src="${isSteel?escape(e.logo):'/logo-bmstu.png'}" alt="${escape(e.place)}" loading="lazy" width="240" height="61"></div><h3>${escape(e.title)}</h3><p>${escape(e.description)}</p>${media}</article>`;
+}
+$('#experience-list').innerHTML = [...site.experience].sort((a,b)=>['digital-steel','bmstu-teaching','bmstu-research'].indexOf(a.id)-['digital-steel','bmstu-teaching','bmstu-research'].indexOf(b.id)).map(roleCard).join('');
+$('#career-list').innerHTML = [...site.career].reverse().map(c=>`<article class="career-card ${c.current?'current':''}"><span class="career-period">${escape(c.period)}</span><div class="career-content"><div class="career-brand">${c.current?'<i class="current-mark" aria-hidden="true"></i>':''}<span>${escape(c.company)}</span></div><h3>${escape(c.role)}</h3><p>${escape(c.description)}</p></div></article>`).join('');
+$('#research-grid').innerHTML = site.research.map((r,i)=>r.url?`<div class="research-reference"><a href="${escape(r.url)}" target="_blank" rel="noopener"><span class="reference-number">[${i+1}]</span><span>${escape(r.originalTitle||r.title)}</span></a><p>${escape(r.meta)}</p></div>`:`<details class="research-reference"><summary><span class="reference-number">[${i+1}]</span><span>${escape(r.originalTitle||r.title)}</span></summary><p>${escape(r.meta)}. ${escape(r.description)}</p></details>`).join('');
 $('#education-list').innerHTML = site.education.map(e=>`<div><h3>${escape(e.title)}</h3><p>${escape(e.description)}</p></div>`).join('');
 $('#practice-grid').innerHTML = site.practice.map(p=>`<article class="practice-card"><h3>${escape(p.title)}</h3><p>${escape(p.description)}</p></article>`).join('');
 initDictation();
-$('#experience-list').innerHTML = site.experience.map((e,i) => `<div class="experience-card" id="${escape(e.id)}"><button class="experience-toggle" aria-expanded="${i===0}" aria-controls="experience-${e.id}"><span class="experience-main"><strong>${escape(e.title)}</strong><small>${escape(e.role)}</small></span><span class="experience-chevron">${chevron}</span></button><div class="experience-description" id="experience-${e.id}" ${i===0?'':'hidden'}>${escape(e.description)}</div></div>`).join('');
+// Pointer motion leaves brief code traces in the industrial illustration.
+let lastTrace=0,traceIndex=0;
+$('#experience-list').addEventListener('pointermove',e=>{
+  const field=e.target.closest('.steel-field');
+  if(!field||reduced.matches||e.pointerType==='touch'||performance.now()-lastTrace<100)return;
+  lastTrace=performance.now();const rect=field.getBoundingClientRect(),token=document.createElement('span');
+  token.className='field-token';token.textContent=['{ }','AI','<>','∑','01','→'][traceIndex++%6];
+  token.style.left=`${e.clientX-rect.left}px`;token.style.top=`${e.clientY-rect.top}px`;token.setAttribute('aria-hidden','true');
+  field.append(token);setTimeout(()=>token.remove(),850);
+},{passive:true});
+const process=$('#service-grid');
+function processProgress(e){const stage=e.target.closest('[data-process-stage]');if(stage)process.style.setProperty('--process-progress',String((Number(stage.dataset.processStage)-1)/2));}
+process.addEventListener('pointerover',processProgress,{passive:true});process.addEventListener('focusin',processProgress);
+process.addEventListener('pointerleave',()=>process.style.setProperty('--process-progress','0'),{passive:true});
 $('#tool-grid').innerHTML = site.tools.map(t=>`<div class="tool-item"><h3>${escape(t.name)}</h3><p>${escape(t.description)}</p></div>`).join('');
 if(site.profile.telegram) $('#direct-contacts').innerHTML += `<a class="direct-contact" href="https://t.me/${encodeURIComponent(site.profile.telegram.replace('@',''))}" target="_blank" rel="noopener">Написать в Telegram</a>`;
 if(site.profile.email) $('#direct-contacts').innerHTML += `<a class="direct-contact" href="mailto:${escape(site.profile.email)}">Написать на почту</a>`;
@@ -36,7 +56,13 @@ function casePage(c) {
   const sections = [['task','Задача',c.task],['contribution','Мой вклад',c.contribution],['solution','Как устроено решение',c.solution],['result','Результат',c.result],['limitations','Что важно учитывать',c.limitations]];
   $('#case-view').innerHTML = `<a class="case-back" href="/#cases">${arrow}Все проекты</a><div class="case-detail-heading"><span class="case-kind">${c.demo?'Демо-сценарий':'Прототип'}</span><h1>${escape(c.title)}</h1><p>${escape(c.description)}</p></div><div class="case-visual visual-${c.visual}">${visual(c)}</div><div class="detail-metric"><strong>${escape(c.metric)}</strong><p>${escape(c.metricLabel)}</p></div><div class="detail-body"><aside aria-label="Разделы кейса">${sections.map(([id,title])=>`<a href="#${id}">${title}</a>`).join('')}</aside><div>${sections.map(([id,title,content])=>`<section class="detail-section" id="${id}"><h2>${title}</h2><p>${escape(content)}</p></section>`).join('')}</div></div><div class="case-cta"><h2>Есть похожая задача?<br><span class="serif-word">Давайте обсудим.</span></h2><a class="button primary" href="/#contact">Написать Тимуру</a></div>`;
 }
-function renderRoute({scroll=true}={}) {
+function focusDestination(section){
+  const target=section?.id==='contact'?section.querySelector('input[name="name"]'):section?.querySelector('h1,h2,h3');
+  if(!target)return;
+  if(!target.matches('input'))target.setAttribute('tabindex','-1');
+  target.focus({preventScroll:true});
+}
+function renderRoute({scroll=true,focus=false}={}) {
   state.page = location.pathname;
   state.caseId = null;
   const match = location.pathname.match(/^\/cases\/([^/]+)\/?$/);
@@ -47,16 +73,19 @@ function renderRoute({scroll=true}={}) {
   $('#privacy-view').hidden = location.pathname !== '/privacy';
   if(c){casePage(c);state.caseId=c.id;state.section='cases';document.title=`${c.shortTitle} — TIMUROID`;document.body.classList.remove('hero-visible');}
   else if(location.pathname==='/privacy'){document.title='О данных — TIMUROID';document.body.classList.remove('hero-visible');}
-  else document.title='TIMUROID — Тимур · Практический ИИ';
+  else document.title='TIMUROID — Тимур Кирибаев';
   $('.mobile-nav').hidden=true;$('.menu-toggle').setAttribute('aria-expanded','false');
-  if(scroll){if(location.hash) requestAnimationFrame(()=>$(location.hash)?.scrollIntoView({behavior:reduced.matches?'instant':'smooth'}));else window.scrollTo({top:0,behavior:'instant'});}
+  if(scroll){
+    if(location.hash)requestAnimationFrame(()=>{const section=document.getElementById(decodeURIComponent(location.hash.slice(1)));section?.scrollIntoView({behavior:reduced.matches?'instant':'smooth'});if(focus)focusDestination(section);});
+    else{window.scrollTo({top:0,behavior:'instant'});if(focus)requestAnimationFrame(()=>focusDestination(c?$('#case-view'):location.pathname==='/privacy'?$('#privacy-view'):$('#home')));}
+  }
   window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));
   refreshOrbs();
 }
-function navigate(path) {
+function navigate(path,{focus=false}={}) {
   history.replaceState({...history.state,scrollY:window.scrollY},'',location.href);
   history.pushState({},'',path);
-  renderRoute();
+  renderRoute({focus});
 }
 window.addEventListener('popstate',()=>{renderRoute({scroll:false});requestAnimationFrame(()=>window.scrollTo({top:history.state?.scrollY??0,behavior:'instant'}));});
 document.addEventListener('click', async e => {
@@ -64,58 +93,76 @@ document.addEventListener('click', async e => {
   if(open){await openAgent();return;}
   const prompt=e.target.closest('[data-agent-prompt]');
   if(prompt){await openAgent();agentModule.sendMessage(prompt.dataset.agentPrompt);return;}
-  const toggle=e.target.closest('.experience-toggle');
-  if(toggle){const expanded=toggle.getAttribute('aria-expanded')==='true';toggle.setAttribute('aria-expanded',String(!expanded));document.getElementById(toggle.getAttribute('aria-controls')).hidden=expanded;return;}
   const filter=e.target.closest('[data-filter]');
   if(filter){$$('[data-filter]').forEach(b=>{b.classList.toggle('active',b===filter);b.setAttribute('aria-pressed',String(b===filter));});renderCases(filter.dataset.filter);return;}
   const link=e.target.closest('a[href]');
   if(!link||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey||link.target==='_blank')return;
   const url=new URL(link.href,location.origin);
   if(url.origin!==location.origin||!['/','/privacy'].includes(url.pathname)&&!url.pathname.startsWith('/cases/'))return;
-  if(url.pathname===location.pathname&&url.hash){e.preventDefault();$('.mobile-nav').hidden=true;$('.menu-toggle').setAttribute('aria-expanded','false');history.replaceState({...history.state,scrollY:window.scrollY},'',location.href);history.pushState({},'',url.pathname+url.hash);requestAnimationFrame(()=>document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView({behavior:reduced.matches?'instant':'smooth'}));return;}
-  e.preventDefault();navigate(url.pathname+url.hash);
+  const fromAgent=Boolean(link.closest('#agent-cards'));
+  if(url.pathname===location.pathname&&url.hash){e.preventDefault();if(fromAgent)agentModule?.minimize();$('.mobile-nav').hidden=true;$('.menu-toggle').setAttribute('aria-expanded','false');history.replaceState({...history.state,scrollY:window.scrollY},'',location.href);history.pushState({},'',url.pathname+url.hash);requestAnimationFrame(()=>{const section=document.getElementById(decodeURIComponent(url.hash.slice(1)));section?.scrollIntoView({behavior:reduced.matches?'instant':'smooth'});if(fromAgent)focusDestination(section);});return;}
+  e.preventDefault();if(fromAgent)agentModule?.minimize();navigate(url.pathname+url.hash,{focus:fromAgent});
 });
 $('.menu-toggle').addEventListener('click',()=>{const open=$('.menu-toggle').getAttribute('aria-expanded')==='true';$('.menu-toggle').setAttribute('aria-expanded',String(!open));$('.mobile-nav').hidden=open;});
 renderRoute({scroll:Boolean(location.hash)});
 initOrbs();
 
-const observer = new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');observer.unobserve(e.target);}});},{threshold:.07});
-$$('.section-heading,.service-card,.tool-item,.about-intro,.contact-intro,.career-card,.research-card,.practice-card').forEach(e=>{e.classList.add('reveal');observer.observe(e);});
 const heroObserver=new IntersectionObserver(([e])=>document.body.classList.toggle('hero-visible',e.isIntersecting&&!$('#home-view').hidden),{threshold:.25});heroObserver.observe($('#home'));
 const sectionObserver=new IntersectionObserver(entries=>{for(const e of entries){if(e.isIntersecting&&!$('#home-view').hidden){state.section=e.target.id;window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));}}},{rootMargin:'-20% 0px -55% 0px'});$$('#home-view>section').forEach(s=>sectionObserver.observe(s));
-export function getContext(){return{current_page:state.page,visible_section:state.section,active_case:state.caseId,device:innerWidth<650?'mobile':'desktop'};}
+export function getContext(){return{current_page:state.page,visible_section:state.section,active_case:state.caseId,device:innerWidth<=650?'mobile':'desktop'};}
 async function openAgent(){activateOrb();window.dispatchEvent(new CustomEvent('microphone-owner',{detail:'agent'}));if(!agentModule)agentModule=await import('/agent.js');agentModule.open();}
 export function showToast(text){clearTimeout(toastTimer);$('#tour-toast').textContent=text;$('#tour-toast').hidden=false;toastTimer=setTimeout(()=>$('#tour-toast').hidden=true,6500);}
+function previewCard(title,text,label='',link='',logo=''){
+  return `<article class="agent-site-card">${logo?`<img src="${escape(logo)}" alt="">`:''}${label?`<span class="preview-label">${escape(label)}</span>`:''}<h3>${escape(title)}</h3><p>${escape(text)}</p>${link?`<a class="agent-card-link" href="${escape(link)}">Посмотреть на сайте</a>`:''}</article>`;
+}
+function previewSection(target){
+  if(target==='home')return ['Тимур Кирибаев',previewCard(site.profile.description,site.profile.about,'','/#experience')];
+  if(target==='cases')return ['Проекты',site.cases.map(c=>previewCard(c.title,c.description,c.demo?'Демонстрационный сценарий':'Рабочий прототип',`/cases/${c.id}`)).join('')];
+  if(target==='experience')return ['Чем занимается Тимур',site.experience.map(e=>previewCard(e.title,e.description,e.place,`/#${e.id}`,e.id==='digital-steel'?e.logo:e.id==='bmstu-teaching'?'/logo-bmstu.png':'')).join('')];
+  if(target==='services')return ['Как можно поработать вместе',site.services.map(s=>previewCard(s.title,s.text,s.label,'/#services')).join('')];
+  if(target==='tools')return ['Форматы работы',site.tools.map(t=>previewCard(t.name,t.description,t.type,'/#services')).join('')];
+  if(target==='practice')return ['ИИ в повседневной работе',site.practice.map(p=>previewCard(p.title,p.description,'','/#practice')).join('')];
+  if(target==='path')return ['Опыт',site.career.filter(c=>c.current).map(c=>previewCard(c.role,c.description,c.company,'/#path',c.logo||'')).join('')];
+  if(target==='research')return ['Образование и исследования',site.education.map(e=>previewCard(e.title,e.description,'','/#research')).join('')];
+  if(target==='contact')return ['Контакты',previewCard('Напишите Тимуру','Опишите свою идею или задачу своими словами. Можно оставить сообщение на сайте или написать напрямую в Telegram.','','/#contact')];
+  return null;
+}
 export function executeSiteAction(action,target='',summary='') {
   const sections=['home','cases','services','experience','tools','contact','path','research','practice'];
   if(action==='none')return{ok:true};
+  if(!['show_section','show_case','show_experience','open_contact','prepare_contact_request'].includes(action))throw new Error('Неизвестное действие');
   if(action==='show_case'){
-    if(!site.cases.some(c=>c.id===target))throw new Error('Неизвестный кейс');
+    const c=site.cases.find(c=>c.id===target);if(!c)throw new Error('Неизвестный кейс');
+    if(agentModule?.isOpen()){agentModule.presentCards(c.shortTitle,previewCard(c.title,c.description,c.demo?'Демонстрационный сценарий':'Рабочий прототип',`/cases/${c.id}`)+previewCard('Как устроен проект',c.solution,'','')+previewCard('Результат',c.result,'',''));return{ok:true,case:target,display:'conversation'};}
     agentModule?.minimize();navigate(`/cases/${target}`);return{ok:true,page:`/cases/${target}`};
   }
   if(action==='show_experience'){
-    if(!site.experience.some(e=>e.id===target))throw new Error('Неизвестная карточка опыта');
+    const e=site.experience.find(e=>e.id===target);if(!e)throw new Error('Неизвестная карточка опыта');
+    if(agentModule?.isOpen()){agentModule.presentCards(e.place,previewCard(e.title,e.description,e.place,`/#${e.id}`,e.id==='digital-steel'?e.logo:e.id==='bmstu-teaching'?'/logo-bmstu.png':''));return{ok:true,experience:target,display:'conversation'};}
     agentModule?.minimize();if(location.pathname!=='/')navigate('/');
-    const card=document.getElementById(target);const toggle=$('.experience-toggle',card);toggle.setAttribute('aria-expanded','true');document.getElementById(toggle.getAttribute('aria-controls')).hidden=false;
-    card.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'center'});highlight(card);return{ok:true,experience:target};
+    const card=document.getElementById(target);card.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'center'});highlight(card);return{ok:true,experience:target};
   }
   if(action==='open_contact'||action==='prepare_contact_request')target='contact';
   if(!sections.includes(target))throw new Error('Неизвестный раздел');
-  agentModule?.minimize();if(location.pathname!=='/')navigate('/');
   if(action==='prepare_contact_request'){
     if(typeof summary!=='string'||!summary.trim()||summary.length>4000)throw new Error('Нужно описание задачи');
     $('#contact-form textarea').value=summary;$('#contact-form').dispatchEvent(new Event('input',{bubbles:true}));
   }
+  if(agentModule?.isOpen()){
+    const preview=previewSection(target);
+    if(preview){if(action==='prepare_contact_request')preview[1]=previewCard('Черновик вашей задачи',summary,'Проверьте перед отправкой','/#contact');agentModule.presentCards(...preview);return{ok:true,section:target,display:'conversation',draftPrepared:action==='prepare_contact_request'};}
+  }
+  agentModule?.minimize();if(location.pathname!=='/')navigate('/');
   const section=document.getElementById(target);section.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});highlight(section);return{ok:true,section:target,draftPrepared:action==='prepare_contact_request'};
 }
 function highlight(el){el.classList.remove('tour-highlight');requestAnimationFrame(()=>el.classList.add('tour-highlight'));setTimeout(()=>el.classList.remove('tour-highlight'),2200);}
 
 const form=$('#contact-form');let requestId=crypto.randomUUID();let submitted=false;
-form.addEventListener('input',()=>{if(submitted){submitted=false;form.dataset.submitted='false';requestId=crypto.randomUUID();const button=$('button[type=submit]',form);button.disabled=form.dataset.dictating==='true'||form.dataset.pending==='true';button.textContent='Отправить Тимуру';$('.form-status',form).textContent='';}});
+form.addEventListener('input',()=>{if(submitted){submitted=false;form.dataset.submitted='false';requestId=crypto.randomUUID();const button=$('button[type=submit]',form);button.disabled=form.dataset.dictating==='true'||form.dataset.pending==='true';button.textContent='Отправить сообщение';$('.form-status',form).textContent='';}});
 form.addEventListener('submit',async e=>{
   e.preventDefault();if(form.dataset.pending==='true'||form.dataset.dictating==='true'||!form.reportValidity())return;
   const button=$('button[type=submit]',form),status=$('.form-status',form);const oldText=button.innerHTML;
-  form.dataset.pending='true';form.dispatchEvent(new Event('contact-state'));button.disabled=true;button.textContent='Сохраняю запрос…';status.textContent='';status.className='form-status';
+  form.dataset.pending='true';form.dispatchEvent(new Event('contact-state'));button.disabled=true;button.textContent='Отправляю…';status.textContent='';status.className='form-status';
   try{
     const values=Object.fromEntries(new FormData(form));
     const r=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...values,consent:values.consent==='on',requestId,source:state.caseId||'website'})});
@@ -123,8 +170,8 @@ form.addEventListener('submit',async e=>{
     const current=Object.fromEntries(new FormData(form));
     const changed=['name','contact','message','consent'].some(key=>current[key]!==values[key]);
     submitted=!changed;form.dataset.submitted=String(submitted);status.classList.add('success');
-    if(changed){requestId=crypto.randomUUID();status.textContent='Запрос сохранён. Изменения в форме ещё не отправлены.';button.textContent='Отправить Тимуру';}
-    else{status.textContent='Запрос сохранён. Тимур сможет ответить по указанному контакту.';button.textContent='Запрос сохранён ✓';}
+    if(changed){requestId=crypto.randomUUID();status.textContent='Сообщение сохранено. Изменения в форме ещё не отправлены.';button.textContent='Отправить сообщение';}
+    else{status.textContent='Спасибо! Сообщение сохранено.';button.textContent='Сообщение отправлено';}
   }
   catch(error){status.textContent=error.message+' Ваш текст остался в форме — можно попробовать ещё раз.';status.classList.add('error');button.disabled=false;button.innerHTML=oldText;}
   finally{form.dataset.pending='false';form.dispatchEvent(new Event('contact-state'));}

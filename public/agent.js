@@ -5,7 +5,7 @@ const dialog=$('#agent-dialog');
 const messages=$('#agent-messages');
 const history=[];
 let pending=false,requestController,pc,channel,mic,audio,voiceTimer,voiceActive=false,connecting=false;
-let previousOverflow='';let textTurns=0;let voiceGeneration=0;
+let previousOverflow='';let textTurns=0;let voiceGeneration=0;let returnFocus;let suggestionSet=0;
 let continuationPending=false,toolFailed=false;
 let audioContext=null,micMeter=null,outputMeter=null,outputPlaying=false;
 let inputSpeaking=false,awaitingReply=false,activeResponseId=null;
@@ -22,16 +22,49 @@ function attachMeter(stream){
 }
 function voiceState(next,label){setOrbState(next);$('#voice-status').textContent=label;}
 
+const suggestionGroups=[
+  [['Покажи проекты Тимура','Проекты'],['Помоги описать мою задачу для Тимура','Моя задача']],
+  [['Чем Тимур занимается в Цифровой стали?','AI-разработка'],['Расскажи о преподавании Тимура в Бауманке','Преподавание']],
+  [['Как устроен проект со сторис?','Кейс со сторис'],['Как Тимур использует ИИ каждый день?','ИИ в работе']],
+  [['Как можно поработать с Тимуром?','Сотрудничество'],['С чего начать применение ИИ в моей работе?','С чего начать']],
+  [['Расскажи об образовании и исследованиях Тимура','Образование'],['Как связаться с Тимуром?','Контакты']]
+];
+function updateSuggestions(index=suggestionSet){
+  suggestionSet=((index%suggestionGroups.length)+suggestionGroups.length)%suggestionGroups.length;
+  const root=$('#agent-suggestions');root.replaceChildren();
+  for(const [prompt,label] of suggestionGroups[suggestionSet]){const button=document.createElement('button');button.type='button';button.dataset.agentPrompt=prompt;button.textContent=label;button.disabled=pending;root.append(button);}
+  const refresh=document.createElement('button');refresh.type='button';refresh.id='refresh-suggestions';refresh.setAttribute('aria-label','Другие примеры вопросов');refresh.textContent='↻';refresh.disabled=pending;root.append(refresh);
+}
+$('#agent-suggestions').addEventListener('click',e=>{if(e.target.closest('#refresh-suggestions'))updateSuggestions(suggestionSet+1);});
+function updateViewport(){
+  if(innerWidth>650||!dialog.open){dialog.style.removeProperty('--agent-viewport-height');dialog.style.removeProperty('--agent-viewport-top');dialog.classList.remove('is-compact');return;}
+  const height=window.visualViewport?.height||innerHeight;dialog.classList.toggle('is-compact',height<600);
+  dialog.style.setProperty('--agent-viewport-height',`${height}px`);
+  dialog.style.setProperty('--agent-viewport-top',`${window.visualViewport?.offsetTop||0}px`);refreshOrbs();
+}
+window.visualViewport?.addEventListener('resize',updateViewport,{passive:true});
+window.visualViewport?.addEventListener('scroll',updateViewport,{passive:true});
+window.addEventListener('resize',updateViewport,{passive:true});
+export function isOpen(){return dialog.open;}
+export function presentCards(title,markup){
+  const cards=$('#agent-cards');
+  cards.innerHTML='<div class="agent-cards-heading"><strong></strong><button class="agent-cards-close" type="button">Скрыть</button></div>'+markup;
+  cards.querySelector('strong').textContent=title;cards.hidden=false;cards.scrollTop=0;
+  dialog.classList.add('has-preview');$('#agent-welcome').hidden=true;
+  updateSuggestions(suggestionSet+1);refreshOrbs();
+}
+$('#agent-cards').addEventListener('click',e=>{if(!e.target.closest('.agent-cards-close'))return;$('#agent-cards').hidden=true;dialog.classList.remove('has-preview');if(!history.length&&!voiceActive&&!connecting)$('#agent-welcome').hidden=false;refreshOrbs();});
 export function open(){
   if(dialog.open)return;
+  returnFocus=document.activeElement;
   previousOverflow=document.body.style.overflow;
   document.body.style.overflow='hidden';
-  dialog.showModal();
+  dialog.showModal();updateViewport();updateSuggestions(suggestionSet);
   refreshOrbs();
   if(!voiceActive&&innerWidth>650)$('#agent-input').focus({preventScroll:true});
 }
-function hide(){if(dialog.open)dialog.close();document.body.style.overflow=previousOverflow;refreshOrbs();}
-export function minimize(){hide();}
+function hide({restoreFocus=true}={}){if(dialog.open)dialog.close();document.body.style.overflow=previousOverflow;updateViewport();refreshOrbs();if(restoreFocus)returnFocus?.focus?.({preventScroll:true});}
+export function minimize(){requestController?.abort();stopVoice();hide({restoreFocus:false});}
 function close(){requestController?.abort();stopVoice();hide();}
 $('.close-agent').addEventListener('click',close);
 dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
@@ -41,7 +74,7 @@ dialog.addEventListener('touchstart',e=>{if(e.target.closest('.sheet-handle,.age
 dialog.addEventListener('touchend',e=>{if(swipeStart!==null&&swipeStart!==undefined&&e.changedTouches[0].clientY-swipeStart>65)close();swipeStart=null;},{passive:true});
 function message(role,text){const item=document.createElement('div');item.className=`agent-message ${role}`;item.textContent=text;messages.append(item);messages.scrollTop=messages.scrollHeight;$('#agent-welcome').hidden=true;dialog.classList.add('has-conversation');refreshOrbs();return item;}
 function error(text){$('#agent-error').textContent=text;$('#agent-error').hidden=!text;if(text)setOrbState('error');else if(!voiceActive&&!connecting&&!pending)setOrbState('idle');}
-function setPending(value){pending=value;$('#agent-form button').disabled=value;$('#agent-input').disabled=value;$('#start-voice').disabled=value;$('#start-voice-inline').disabled=value;$('#agent-suggestions').querySelectorAll('button').forEach(b=>b.disabled=value);$('#agent-state').textContent=value?'Думаю…':'Готов к разговору';setOrbState(value?'thinking':$('#agent-error').hidden?'idle':'error');}
+function setPending(value){pending=value;$('#agent-form button').disabled=value;$('#agent-input').disabled=value;$('#start-voice').disabled=value;$('#start-voice-inline').disabled=value;$('#agent-suggestions').querySelectorAll('button').forEach(b=>b.disabled=value);$('#agent-state').textContent=value?'Думаю…':'Обо мне, проектах и вашей задаче';setOrbState(value?'thinking':$('#agent-error').hidden?'idle':'error');}
 export async function sendMessage(text){
   text=String(text??'').trim();if(!text||pending)return;
   if(text.length>1500){error('Напишите вопрос короче — до 1500 символов.');return;}
@@ -51,21 +84,22 @@ export async function sendMessage(text){
   try{
     const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history.slice(-12),context:getContext(),turn:textTurns}),signal:requestController.signal});
     const result=await response.json();if(!response.ok)throw new Error(result.error||'Агент пока не смог ответить.');
-    thinking.remove();message('assistant',result.reply);history.push({role:'assistant',content:result.reply});textTurns++;
+    thinking.remove();message('assistant',result.reply);history.push({role:'assistant',content:result.reply});textTurns++;updateSuggestions(suggestionSet+1);
     if(result.action&&result.action!=='none'){
       executeSiteAction(result.action,result.target,result.summary);showToast(result.reply);
     }
-  }catch(e){thinking.remove();if(e.name!=='AbortError'){const item=message('assistant','Не удалось получить ответ. Можно повторить вопрос или написать Тимуру напрямую.');const retry=document.createElement('button');retry.className='message-action';retry.textContent='Повторить вопрос';retry.onclick=()=>sendMessage(text);item.append(retry);error(e.message);history.pop();}}
+  }catch(e){thinking.remove();if(e.name!=='AbortError'){const item=message('assistant','Не удалось получить ответ. Можно повторить вопрос или написать Тимуру напрямую.');const retry=document.createElement('button');retry.type='button';retry.className='message-action';retry.textContent='Повторить вопрос';retry.onclick=()=>sendMessage(text);item.append(retry);error(e.message);history.pop();}}
   finally{setPending(false);if(dialog.open&&innerWidth>650)$('#agent-input').focus({preventScroll:true});}
 }
 $('#agent-form').addEventListener('submit',e=>{e.preventDefault();sendMessage($('#agent-input').value);});
 $('#start-voice').addEventListener('click',startVoice);
 $('#start-voice-inline').addEventListener('click',startVoice);
+$('#agent-orb-toggle').addEventListener('click',()=>{if(voiceActive||connecting)stopVoice();else startVoice();});
 $('#stop-voice').addEventListener('click',()=>{stopVoice();$('#agent-state').textContent='Разговор завершён';});
 $('#switch-to-text').addEventListener('click',()=>{stopVoice();$('#agent-input').focus({preventScroll:true});});
 function voiceUI(active){
   dialog.dataset.mode=active?'voice':'text';
-  $('#voice-panel').hidden=!active;$('#agent-welcome').hidden=active||history.length>0;messages.hidden=active;$('#agent-suggestions').hidden=active;$('.agent-bottom').hidden=active;
+  $('#voice-panel').hidden=!active;$('#agent-welcome').hidden=active||history.length>0||dialog.classList.contains('has-preview');messages.hidden=active;$('.agent-composer').hidden=active;$('#agent-orb-toggle').setAttribute('aria-label',active?'Завершить голосовой разговор':'Поговорить голосом');
   const floating=$('.floating-agent span');if(floating)floating.textContent=active?'Вернуться к разговору':'Спросить агента';
   refreshOrbs();
 }
@@ -115,7 +149,7 @@ async function onVoiceEvent(event){
 }
 function stopVoice(){
   ++voiceGeneration;clearTimeout(voiceTimer);voiceTimer=null;voiceActive=false;connecting=false;continuationPending=false;toolFailed=false;
-  outputPlaying=false;inputSpeaking=false;awaitingReply=false;activeResponseId=null;setOrbAudioReader(null);setOrbLevel(0);setOrbState('idle');$('#agent-state').textContent='Готов к разговору';
+  outputPlaying=false;inputSpeaking=false;awaitingReply=false;activeResponseId=null;setOrbAudioReader(null);setOrbLevel(0);setOrbState('idle');$('#agent-state').textContent='Обо мне, проектах и вашей задаче';
   for(const meter of meterGraphs.splice(0)){meter.source.disconnect();meter.analyser.disconnect();}micMeter=null;outputMeter=null;
   if(audioContext){audioContext.close().catch(()=>{});audioContext=null;}$('.audio-unlock')?.remove();
   if(channel){channel.onmessage=null;channel.close();channel=null;}if(pc){pc.onconnectionstatechange=null;pc.close();pc=null;}

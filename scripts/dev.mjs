@@ -3,6 +3,7 @@ import {readFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {createInterface} from 'node:readline/promises';
+import {serveMedia} from '../server/media.mjs';
 await mkdir('.sites-runtime',{recursive:true});
 const localDb=new DatabaseSync('.sites-runtime/preview.sqlite');
 const {readdir}=await import('node:fs/promises');
@@ -23,6 +24,7 @@ if(process.argv.includes('--secret-stdin')){
 }
 const server=http.createServer(async(req,res)=>{
   try{
+    if(await serveMedia(req,res,path.resolve('public/media')))return;
     const assetRoot=path.resolve('public');const pathname=new URL(req.url,'http://localhost').pathname;
     const filePath=path.resolve(assetRoot,'.'+pathname);const types={'.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.webp':'image/webp','.ttf':'font/ttf'};
     if(filePath.startsWith(assetRoot+path.sep)&&types[path.extname(filePath)]&&req.method==='GET'){

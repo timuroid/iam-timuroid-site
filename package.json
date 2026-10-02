@@ -9,7 +9,7 @@
     "build": "node scripts/build.mjs",
     "predev": "npm run build",
     "dev": "node --env-file-if-exists=.env scripts/dev.mjs",
-    "check": "node --check public/app.js && node --check public/agent.js && node --check public/orb.js && node --check public/dictation.js && node --check server/worker.mjs && node --check server/node.mjs && node --check scripts/build.mjs && node --check scripts/dev.mjs",
+    "check": "node --check public/app.js && node --check public/agent.js && node --check public/orb.js && node --check public/dictation.js && node --check server/worker.mjs && node --check server/node.mjs && node --check server/media.mjs && node --check scripts/build.mjs && node --check scripts/dev.mjs",
     "prestart": "npm run build",
     "start": "node --env-file-if-exists=.env server/node.mjs"
   },

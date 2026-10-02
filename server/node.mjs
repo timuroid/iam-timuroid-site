@@ -3,6 +3,7 @@ import {readFile,readdir,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import worker from '../dist/server/index.js';
+import {serveMedia} from './media.mjs';
 
 process.umask(0o077);
 const databasePath=path.resolve(process.env.DB_PATH||'data/timuroid.sqlite');
@@ -20,6 +21,7 @@ const DB={prepare(sql){let parameters=[];return{bind(...values){parameters=value
 const runtime={DB,OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_TEXT_MODEL:process.env.OPENAI_TEXT_MODEL,OPENAI_REALTIME_MODEL:process.env.OPENAI_REALTIME_MODEL};
 const server=http.createServer(async(req,res)=>{
   try{
+    if(await serveMedia(req,res,new URL('../dist/media/',import.meta.url)))return;
     const chunks=[];let size=0;
     for await(const chunk of req){size+=chunk.length;if(size>10*1024*1024+10000){res.writeHead(413,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Слишком большой запрос.'}));return;}chunks.push(chunk);}
     const host=req.headers.host||'localhost';

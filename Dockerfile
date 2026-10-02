@@ -12,6 +12,7 @@ FROM node:24-alpine
 WORKDIR /app
 COPY --from=build /app/dist dist
 COPY server/node.mjs server/node.mjs
+COPY server/media.mjs server/media.mjs
 RUN mkdir /data && chown node:node /data
 USER node
 ENV HOST=0.0.0.0 PORT=3000 DB_PATH=/data/timuroid.sqlite

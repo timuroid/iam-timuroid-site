@@ -1,0 +1,6 @@
+iam.timuroid.ru {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:4318 {
+        header_up CF-Connecting-IP {remote_host}
+    }
+}

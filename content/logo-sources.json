@@ -24,8 +24,20 @@
   },
   "digitalSteel": {
     "displayName": "Цифровая сталь",
+    "file": "public/logo-digital-steel.svg",
     "officialSite": "https://digitsteel.ru",
-    "verification": "DuckDuckGo indexed company official homepage and /uslugi (AI solutions), corroborated corporate registry entries.",
-    "note": "Site and favicon endpoints return HTTP 503. No usable official logo retrieved; use plain brand text."
+    "workspaceSource": "00_Система/skills/uralsteel-documents/assets/logo-colored.svg",
+    "sourceSha256": "7c8115161e1e55c423dbf87f3f467597981a862c291df4eacf9ea3a2b3f0cd00",
+    "checkedOn": "2026-10-02",
+    "note": "Existing Digital Steel brand asset from the Work brand package, visually checked against its company name. Artwork and colors preserved; XML encoding declaration and external SVG DTD removed for browser compatibility. Official company page indexed, but direct asset verification unavailable (HTTP 429/502). User explicitly requested this public company mark on the personal website."
+  },
+  "bmstuLlmPractice": {
+    "displayName": "LLM на практике — кафедра ИУ5, МГТУ им. Н. Э. Баумана",
+    "file": "public/media/llm-practice.mp4",
+    "poster": "public/media/llm-practice-poster.jpg",
+    "workspaceSource": "03_Университет/03_Медиа_и_мероприятия/video_processing_service/data/outputs/2026-10-02-final-nine-videos/02_LLM_практика/LLM_практика_RU.mp4",
+    "sourceSha256": "9954da8c2285519600e8cdd050a32606c161c145960e98abd40ba02254b44ce3",
+    "checkedOn": "2026-10-02",
+    "note": "Exact LLM practice video from the final nine-video IU5 package, matched by topic and reviewed on representative frames. User explicitly requested publication on this personal site. Website copy re-encoded with H.264 CRF 25, AAC 128 kbps and faststart; original 1920x1080, 30 FPS, full duration and burned-in Russian subtitles retained. Poster is frame 45 seconds from this same video."
   }
 }
