@@ -1,0 +1,22 @@
+name: timuroid
+services:
+  timuroid:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: timuroid-personal:latest
+    container_name: timuroid-personal
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4318:3000"
+    env_file:
+      - /etc/timuroid.env
+    volumes:
+      - timuroid_data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  timuroid_data:

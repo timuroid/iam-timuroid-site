@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#faf9f6">
+  <title>TIMUROID — Тимур · Практический ИИ</title>
+  <meta name="description" content="Тимур — руководитель команды ИИ-разработки в «Цифровой стали», исследователь и преподаватель в МГТУ имени Баумана. Проекты, опыт и практика.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body class="hero-visible">
+  <a class="skip-link" href="#main">К содержанию</a>
+  <header class="header">
+    <a class="wordmark" href="/" aria-label="TIMUROID — на главную">timuroid<span class="brand-dot">.</span></a>
+    <nav class="desktop-nav" aria-label="Основное меню"><a href="/#experience">Обо мне</a><a href="/#path">Мой путь</a><a href="/#cases">Проекты</a><a href="/#services">Вместе</a></nav>
+    <a class="header-contact" href="/#contact">Написать мне</a>
+    <button class="menu-toggle" aria-label="Открыть меню" aria-expanded="false"><span></span><span></span></button>
+  </header>
+  <nav class="mobile-nav" aria-label="Мобильное меню" hidden><a href="/#experience">Обо мне</a><a href="/#path">Мой путь</a><a href="/#cases">Проекты</a><a href="/#services">Вместе</a><a href="/#contact">Написать мне</a></nav>
+  <main id="main">
+    <div id="home-view">
+      <section class="hero section-shell" id="home">
+        <div class="hero-copy">
+          <h1>Привет,<br>я <span class="serif-word">Тимур.</span></h1>
+          <p class="hero-description">Руковожу командой ИИ-разработки в «Цифровой стали». Исследую применение ИИ и обучаю студентов в МГТУ имени Баумана.</p><p class="hero-personal">А ещё пробую новые инструменты и нахожу им применение в работе и жизни.</p>
+          <div class="hero-actions"><a class="button primary" href="/#cases">Мои проекты</a><a class="text-link" href="/#contact">Написать мне</a></div>
+        </div>
+        <div class="hero-art">
+          <button class="hero-orb-button" data-open-agent aria-label="Поговорить с AI-агентом Тимура"><canvas class="orb-image live-orb" data-live-orb="hero" width="560" height="560" aria-hidden="true"></canvas></button>
+          <button class="agent-invite" data-open-agent>Поговорить с моим ИИ-агентом</button>
+        </div>
+      </section>
+      <section class="experience section-block" id="experience">
+        <div class="section-shell">
+          <div class="about-intro"><h2>За решениями —<br><span class="serif-word">опыт и любопытство.</span></h2><div class="about-text"><p id="about-description"></p></div></div>
+          <div class="experience-list" id="experience-list"></div>
+        </div>
+      </section>
+      <section class="career section-shell section-block" id="path">
+        <div class="section-heading"><h2>Как я<br><span class="serif-word">к этому пришёл.</span></h2><p class="section-description">От робототехники и работы с людьми — к управлению технической командой и разработке ИИ-решений.</p></div>
+        <div class="career-list" id="career-list"></div>
+      </section>
+      <section class="research section-shell section-block" id="research">
+        <div class="section-heading"><h2>Хочу понимать,<br><span class="serif-word">как это устроено.</span></h2><div class="university-mark"><img src="/logo-bmstu.png" alt="МГТУ имени Н. Э. Баумана" width="275" height="70" loading="lazy"></div></div>
+        <div class="research-grid" id="research-grid"></div>
+        <div class="education-list" id="education-list"></div>
+      </section>
+      <section class="projects section-shell section-block" id="cases">
+        <div class="section-heading"><h2>Покажу, как это<br><span class="serif-word">работает на практике.</span></h2></div>
+        <div class="case-filters" role="group" aria-label="Фильтр проектов"><button class="filter active" data-filter="all" aria-pressed="true">Все</button><button class="filter" data-filter="Рабочие процессы" aria-pressed="false">Рабочие процессы</button><button class="filter" data-filter="AI-ассистенты" aria-pressed="false">AI-ассистенты</button><button class="filter" data-filter="Документы" aria-pressed="false">Документы</button></div>
+        <div class="case-grid" id="case-grid"></div>
+      </section>
+      <section class="practice section-shell section-block" id="practice">
+        <div class="section-heading"><h2>ИИ — часть моей<br><span class="serif-word">ежедневной работы.</span></h2></div>
+        <div class="practice-grid" id="practice-grid"></div>
+      </section>
+      <section class="services section-shell section-block" id="services">
+        <div class="section-heading"><h2>Если захотите<br><span class="serif-word">поработать вместе.</span></h2><p class="section-description">Помогаю применять ИИ в личной работе и небольших командах. Начнём с разговора, а формат выберем под вашу задачу.</p></div>
+        <div class="collaboration-formats" id="tools"><div class="tool-grid" id="tool-grid"></div></div><div class="working-process"><h3>Как будем двигаться</h3><div class="service-grid" id="service-grid"></div></div>
+      </section>
+      <section class="contact section-shell section-block" id="contact">
+        <div class="contact-intro"><h2>Буду рад<br><span class="serif-word">познакомиться.</span></h2><p>Вопрос об ИИ, идея или конкретная задача — можно своими словами. Я прочитаю и свяжусь с вами.</p><div id="direct-contacts"></div></div>
+        <form class="contact-form" id="contact-form">
+          <div class="field-row"><label>Как вас зовут<input name="name" autocomplete="name" placeholder="Ваше имя" required maxlength="100"></label><label>Как с вами связаться<input name="contact" autocomplete="email" placeholder="Telegram, email или телефон" required maxlength="180"></label></div>
+          <div class="message-label"><label for="request-message">Что хотите обсудить?</label><button class="dictation-button" type="button" id="dictate-request" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6" stroke="currentColor" stroke-width="1.6"/></svg><span>Наговорить</span></button></div><textarea id="request-message" name="message" rows="4" placeholder="Напишите или расскажите голосом…" required minlength="5" maxlength="4000"></textarea><div class="dictation-feedback"><p id="dictation-status" role="status" aria-live="polite"></p><button id="cancel-dictation" class="text-link" type="button" hidden>Отменить</button></div>
+          <input class="honeypot" name="company_website" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <label class="consent"><input name="consent" type="checkbox" required><span>Можно сохранить мой запрос и контакт, чтобы Тимур ответил мне. <a href="/privacy">О данных</a></span></label>
+          <button class="button primary" type="submit">Отправить Тимуру</button><p class="form-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    </div>
+    <article id="case-view" class="section-shell case-detail" hidden></article>
+    <article id="privacy-view" class="section-shell privacy-view" hidden><a href="/" class="text-link">На главную</a><h1>Ваш контакт —<br><span class="serif-word">для нашего разговора.</span></h1><p>Форма сохраняет имя, контакт и описание задачи в базе сайта. Эти сведения нужны Тимуру, чтобы ответить на ваш запрос. Не присылайте пароли, документы с персональными данными или конфиденциальные материалы.</p><p>Сообщения AI-агенту и звук в голосовом режиме обрабатываются сервисом OpenAI для ответа. Запись микрофона начинается только после нажатия кнопки микрофона. После завершения разговора соединение закрывается. Голосовое описание задачи также передаётся OpenAI для перевода в текст. Перед отправкой вы можете проверить и исправить его. Сайт не сохраняет аудиозаписи и историю чата в своей базе.</p><p>Сайт не использует рекламные трекеры. Черновик формы и диалог доступны в текущей вкладке. Контакт передаётся только после того, как вы подтвердите отправку формы.</p><a href="/#contact" class="button primary">Связаться с Тимуром</a></article>
+  </main>
+  <footer class="footer section-shell"><a class="wordmark" href="/">timuroid<span class="brand-dot">.</span></a><div><a href="/privacy">О данных</a><span>© 2026</span></div></footer>
+  <button class="floating-agent" data-open-agent aria-label="Открыть AI-агента Тимура"><canvas class="live-orb" data-live-orb="floating" width="72" height="72" aria-hidden="true"></canvas><span>Спросить агента</span></button>
+  <dialog id="agent-dialog" class="agent-dialog" aria-labelledby="agent-title" data-mode="text">
+    <div class="sheet-handle"></div>
+    <div class="agent-header"><div><strong id="agent-title">Агент Тимура</strong><span class="agent-state" id="agent-state">Готов к разговору</span></div><button class="icon-button close-agent" aria-label="Закрыть агента">×</button></div>
+    <div class="agent-orb-stage"><canvas class="live-orb" data-live-orb="panel" width="320" height="320" aria-hidden="true"></canvas></div>
+    <div class="agent-welcome" id="agent-welcome"><p>Что хотите обсудить?</p><button class="button primary agent-talk" id="start-voice" type="button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6" stroke="currentColor" stroke-width="1.6"/></svg>Поговорить голосом</button></div>
+    <div class="agent-messages" id="agent-messages" aria-live="polite" aria-label="Диалог с агентом"></div>
+    <div class="agent-suggestions" id="agent-suggestions"><button data-agent-prompt="Покажи проекты Тимура">Проекты</button><button data-agent-prompt="Помоги описать мою задачу для Тимура">Моя задача</button></div>
+    <div class="voice-panel" id="voice-panel" hidden><h3 id="voice-status">Подключаюсь…</h3><p id="voice-caption">Можно перебить агента и задать вопрос.</p><div class="voice-actions"><button class="button primary" id="stop-voice">Завершить</button><button class="text-link" id="switch-to-text">Написать</button></div></div>
+    <p class="agent-error" id="agent-error" role="status" hidden></p>
+    <div class="agent-bottom"><button class="voice-button" id="start-voice-inline" aria-label="Поговорить голосом" title="Поговорить голосом"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6" stroke="currentColor" stroke-width="1.6"/></svg></button><form id="agent-form"><label class="sr-only" for="agent-input">Ваш вопрос агенту</label><input id="agent-input" placeholder="Ваш вопрос…" maxlength="1500" autocomplete="off"><button class="agent-send" aria-label="Отправить вопрос" type="submit"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></form></div>
+    <p class="agent-disclaimer">AI может ошибаться.</p>
+  </dialog>
+  <div class="tour-toast" id="tour-toast" role="status" hidden></div>
+</body>
+</html>

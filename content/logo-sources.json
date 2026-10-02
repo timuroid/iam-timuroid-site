@@ -1,0 +1,31 @@
+{
+  "intelligentUniversity": {
+    "displayName": "Интеллект Университет",
+    "abbreviation": "IU",
+    "file": "public/logo-iu.png",
+    "sourceImage": "https://prorobotov.org/upload/iblock/84c/da5j74fuw8qby1kmex38cxzesrxralvf.jpg",
+    "sourcePage": "https://prorobotov.org/robo-kompanii/intellect_universitet/",
+    "officialSocial": "https://www.youtube.com/@iu.education",
+    "websiteCandidate": "https://iu.education",
+    "note": "Partner robotics directory brands this exact logo as Интеллект Университет and gives robotics education product. Official YouTube search describes IU (Intelligent University); iu.education returned HTTP 503, so direct primary-site logo verification was unavailable. JPEG converted to PNG without changing pixels."
+  },
+  "bmstu": {
+    "displayName": "МГТУ им. Н. Э. Баумана",
+    "file": "public/logo-bmstu.png",
+    "sourceImage": "https://mirror.bmstu.ru/assets/images/logo/logo.png",
+    "officialSite": "https://bmstu.ru",
+    "note": "bmstu.ru redirects to official mirror.bmstu.ru; its header embeds this transparent PNG. 275 x 70."
+  },
+  "whistling": {
+    "displayName": "Whistling Production Bureau",
+    "officialSite": "https://whistlingpb.com",
+    "verification": "https://design.hse.ru/news/2684",
+    "note": "HSE official article names the company, transliterates Вислинг, and links whistlingpb.com/register. Domain unavailable through proxy (403 tunnel). No usable official logo retrieved; use plain brand text."
+  },
+  "digitalSteel": {
+    "displayName": "Цифровая сталь",
+    "officialSite": "https://digitsteel.ru",
+    "verification": "DuckDuckGo indexed company official homepage and /uslugi (AI solutions), corroborated corporate registry entries.",
+    "note": "Site and favicon endpoints return HTTP 503. No usable official logo retrieved; use plain brand text."
+  }
+}
