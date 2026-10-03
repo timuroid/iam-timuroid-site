@@ -1,0 +1,18 @@
+[
+  {
+    "family": "golostext",
+    "file": "public/golos-text.ttf",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/golostext/GolosText%5Bwght%5D.ttf",
+    "license": "content/font-licenses/golostext/OFL.txt",
+    "sha256": "17bb58fb69aec2dfb047a2ebf52534023e9b688c97a6b7ac795b0a72912c2063",
+    "retrieved": "2026-10-03"
+  },
+  {
+    "family": "lora",
+    "file": "public/lora-italic.ttf",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/lora/Lora-Italic%5Bwght%5D.ttf",
+    "license": "content/font-licenses/lora/OFL.txt",
+    "sha256": "22d8d8854b53807aa664ca34f2031a9ed57a1d0dea296b8b96cdd3aad937a2b3",
+    "retrieved": "2026-10-03"
+  }
+]

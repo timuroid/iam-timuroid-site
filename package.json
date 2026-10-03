@@ -12,7 +12,7 @@
     "check": "node --check public/app.js && node --check public/agent.js && node --check public/orb.js && node --check public/haptics.js && node --check public/dictation.js && node --check server/worker.mjs && node --check server/node.mjs && node --check server/media.mjs && node --check scripts/build.mjs && node --check scripts/dev.mjs",
     "prestart": "npm run build",
     "start": "node --env-file-if-exists=.env server/node.mjs",
-    "check:agent": "node scripts/check-agent-state.cjs && node scripts/check-agent-config.mjs"
+    "check:agent": "node scripts/check-agent-state.cjs && node scripts/check-agent-config.mjs && node scripts/check-orb-state.cjs"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.11",

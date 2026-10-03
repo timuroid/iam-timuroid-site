@@ -3,7 +3,7 @@ const vm = require('node:vm');
 const crypto = require('node:crypto');
 const sourcePath = require('node:path').resolve(__dirname,'../public/agent.js');
 const source = fs.readFileSync(sourcePath, 'utf8');
-const compiled = source.replace(/^import .*?;\s*$/gm, '').replace(/^export\s+/gm, '') + `\n;globalThis.probe = {isOpen,open,close,collapse,startVoice,stopVoice,interrupt,sendMessage,onVoiceEvent,voiceBusy,assistantBusy,canInterrupt,updateViewport,toggleVoice,getAgentDiagnostics,state:()=>({mode,sessionActive,presentation,pending,conversationGeneration,textTurns,voiceGeneration,voiceActive,connecting,inputSpeaking,awaitingReply,responseInFlight,activeResponseId,outputPlaying,outputExpected,playbackResponseId,interruptedTurn,clearingOutput,clearingResponseId,cancelAwaitIds:[...cancelAwaitIds],continuationPending,history:history.map(x=>({...x})),audioResponses:[...audioResponses],finishedAudioResponses:[...finishedAudioResponses],cancelledResponses:[...cancelledResponses],micEnabled:mic?.getAudioTracks().map(t=>t.enabled)??[],messages:messages.children.map(n=>n.textContent),error:document.querySelector('#agent-error').textContent})};`;
+const compiled = source.replace(/^import .*?;\s*$/gm, '').replace(/^export\s+/gm, '') + `\n;globalThis.probe = {isOpen,open,close,collapse,startVoice,stopVoice,interrupt,sendMessage,onVoiceEvent,voiceBusy,assistantBusy,canInterrupt,updateViewport,toggleVoice,setVoiceEnabled,getAgentDiagnostics,state:()=>({mode,sessionActive,presentation,pending,conversationGeneration,textTurns,voiceGeneration,voiceActive,connecting,inputSpeaking,awaitingReply,responseInFlight,activeResponseId,outputPlaying,outputExpected,playbackResponseId,interruptedTurn,clearingOutput,clearingResponseId,cancelAwaitIds:[...cancelAwaitIds],continuationPending,history:history.map(x=>({...x})),audioResponses:[...audioResponses],finishedAudioResponses:[...finishedAudioResponses],cancelledResponses:[...cancelledResponses],micEnabled:mic?.getAudioTracks().map(t=>t.enabled)??[],messages:messages.children.map(n=>n.textContent),error:document.querySelector('#agent-error').textContent})};`;
 
 class ClassList {
   constructor() { this.items = new Set(); }
@@ -21,7 +21,7 @@ class Element {
   addEventListener(type, callback) { (this.listeners[type]??=[]).push(callback); }
   setAttribute(key,value) { this.attributes[key]=String(value); }
   getAttribute(key) { return this.attributes[key]??null; }
-  querySelector(selector) { if(selector==='h1,h2,h3'||selector==='h1,h2')return this.children.find(n=>selector.split(',').includes(n.tagName.toLowerCase()))??null; if(selector==='svg'){if(!this.svg)this.svg=new Element('svg',this.ownerDocument);return this.svg;} return this.querySelectorAll(selector)[0]??null; }
+  querySelector(selector) { if(selector==='h1,h2,h3'||selector==='h1,h2')return this.children.find(n=>selector.split(',').includes(n.tagName.toLowerCase()))??null; if(selector==='button[type=submit]')return this.children.find(n=>n.tagName==='BUTTON')??null; if(selector==='[name=consent]')return this.children.find(n=>n.name==='consent')??null; if(selector==='svg'){if(!this.svg)this.svg=new Element('svg',this.ownerDocument);return this.svg;} return this.querySelectorAll(selector)[0]??null; }
   querySelectorAll(selector) { const all=this.children.flatMap(n=>[n,...n.querySelectorAll('*')]);if(selector==='*')return all;if(selector==='button')return all.filter(n=>n.tagName==='BUTTON');if(selector.startsWith('.'))return all.filter(n=>n.classList.contains(selector.slice(1))||n.className.split(/\s+/).includes(selector.slice(1)));return []; }
   contains(element) { return element===this||this.children.some(n=>n.contains(element)); }
   matches(selector) { return selector==='input'&&this.tagName==='INPUT'; }
@@ -34,25 +34,26 @@ class Element {
   pause() { this.pauseCount++; }
 }
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
-function harness(){
+function harness({nativeControls=false}={}){
   const doc={hidden:false,activeElement:null,createElement:tag=>new Element(tag,doc)};
   doc.body=new Element('body',doc);doc.activeElement=doc.body;
   const nodes=new Map();
   const buttons=new Set(['#agent-send','#agent-voice-toggle','#agent-interrupt','#agent-dock-voice','#agent-resume','#agent-voice-stop','#agent-to-text','.close-agent','.hero-orb-button']);
-  for(const selector of ['#agent-panel','#agent-overlay','#agent-dock','.hero-art','.hero-orb-button','.agent-entry-actions','#home-view','#agent-messages','#agent-input','#agent-send','#agent-suggestions','#agent-voice-toggle','#agent-interrupt','#voice-panel','#voice-status','#voice-caption','#agent-voice-stop','#agent-to-text','#agent-dock-voice','#agent-state','#agent-dock-state','#agent-dock-label','#agent-title','#agent-resume','#agent-error','#agent-form','.close-agent','[data-live-orb=hero]','[data-live-orb=focus]','[data-live-orb=dock]'])nodes.set(selector,new Element(selector==='#agent-input'?'input':buttons.has(selector)?'button':selector.startsWith('[data-live-orb')?'canvas':'div',doc));
+  for(const selector of ['#agent-panel','#agent-home-space','#agent-overlay','#agent-dock','.hero-art','.hero-orb-button','.agent-entry-actions','#home-view','#agent-messages','#agent-input','#agent-send','#agent-suggestions','#agent-voice-toggle','#agent-interrupt','#voice-panel','#voice-status','#voice-caption','#agent-voice-stop','#agent-to-text','#agent-dock-voice','#agent-state','#agent-dock-state','#agent-dock-label','#agent-title','#agent-resume','#agent-error','#agent-form','.close-agent','[data-live-orb=hero]','[data-live-orb=focus]','[data-live-orb=dock]'])nodes.set(selector,new Element(selector==='#agent-input'?'input':buttons.has(selector)?'button':selector.startsWith('[data-live-orb')?'canvas':'div',doc));
   nodes.get('#agent-error').hidden=true;
   for(const selector of ['#agent-messages','#agent-input','#agent-form','#agent-suggestions','#agent-voice-toggle','#agent-interrupt','#voice-panel','#voice-status','#voice-caption','#agent-voice-stop','#agent-to-text','#agent-state','#agent-title','.close-agent'])nodes.get('#agent-panel').append(nodes.get(selector));
   nodes.get('#agent-dock').append(nodes.get('#agent-resume'),nodes.get('#agent-dock-voice'));
   nodes.get('#agent-resume').append(nodes.get('[data-live-orb=dock]'),nodes.get('#agent-dock-label'),nodes.get('#agent-dock-state'));
   nodes.get('.hero-orb-button').append(nodes.get('[data-live-orb=hero]'));
-  nodes.get('.hero-art').append(nodes.get('.hero-orb-button'),nodes.get('#agent-panel'),nodes.get('.agent-entry-actions'));
-  nodes.get('#agent-overlay').append(nodes.get('[data-live-orb=focus]'));
+  nodes.get('.hero-art').append(nodes.get('.hero-orb-button'),nodes.get('#agent-home-space'));
+  nodes.get('#agent-home-space').append(nodes.get('.agent-entry-actions'));
+  nodes.get('#agent-overlay').append(nodes.get('[data-live-orb=focus]'),nodes.get('#agent-panel'));
   nodes.get('#home-view').append(nodes.get('.hero-art'));
   doc.body.append(nodes.get('#home-view'),nodes.get('#agent-overlay'),nodes.get('#agent-dock'));
   doc.querySelector=selector=>selector==='.audio-unlock'?doc.body.querySelector(selector):nodes.get(selector)??null;
   const logs={sent:[],requests:[],peers:[],streams:[],orb:[],actions:[],observers:[],timers:new Map()};
   let timerId=0;
-  const win={scrollY:0,visualViewport:{height:844,offsetTop:0,addEventListener(){}},listeners:{},addEventListener(type,callback){(this.listeners[type]??=[]).push(callback);},dispatchEvent(event){this.listeners[event.type]?.forEach(fn=>fn(event));}};
+  const win={scrollY:0,scrollX:0,visualViewport:{height:844,offsetTop:0,addEventListener(){}},listeners:{},addEventListener(type,callback){(this.listeners[type]??=[]).push(callback);},dispatchEvent(event){this.listeners[event.type]?.forEach(fn=>fn(event));}};
   class Peer {
     constructor(){this.connectionState='new';this.tracks=[];logs.peers.push(this);}
     addTrack(track,stream){this.tracks.push({track,stream});}
@@ -68,7 +69,7 @@ function harness(){
     if(url==='/api/realtime'){logs.requests.push({url,options});return Promise.resolve({ok:true,text:async()=> 'mock-answer'});}
     const d=deferred();const request={url,options,...d};logs.requests.push(request);return d.promise;
   }
-  const context=vm.createContext({document:doc,window:win,navigator,RTCPeerConnection:Peer,MediaStream:class{constructor(tracks){this.tracks=tracks;}getTracks(){return this.tracks;}getAudioTracks(){return this.tracks;}},CustomEvent:class{constructor(type,options={}){this.type=type;this.detail=options.detail;}},AbortController,Float32Array,Set,Map,JSON,Math,String,Boolean,Promise,console,innerWidth:390,innerHeight:844,matchMedia:()=>({matches:false}),performance:{now:()=>0},queueMicrotask,requestAnimationFrame:callback=>{callback();return 1;},setTimeout:(callback,ms)=>{const id=++timerId;logs.timers.set(id,{callback,ms});return id;},clearTimeout:id=>logs.timers.delete(id),setInterval:(callback,ms)=>{const id=++timerId;logs.timers.set(id,{callback,ms,interval:true});return id;},clearInterval:id=>logs.timers.delete(id),IntersectionObserver:class{constructor(callback){this.callback=callback;logs.observers.push(this);}observe(target){this.target=target;}},getContext:()=>({section:'hero'}),executeSiteAction:(...args)=>{logs.actions.push(args);return {ok:true};},revealAgentHome:()=>{},setOrbState:state=>logs.orb.push(state),setOrbLevel:()=>{},setOrbAudioReader:()=>{},refreshOrbs:()=>{},requestHaptic:()=>{},mountNativeHapticToggle:()=>null});
+  const context=vm.createContext({document:doc,window:win,navigator,RTCPeerConnection:Peer,MediaStream:class{constructor(tracks){this.tracks=tracks;}getTracks(){return this.tracks;}getAudioTracks(){return this.tracks;}},CustomEvent:class{constructor(type,options={}){this.type=type;this.detail=options.detail;}},AbortController,Float32Array,Set,Map,JSON,Math,String,Boolean,Promise,console,innerWidth:390,innerHeight:844,matchMedia:()=>({matches:false}),performance:{now:()=>0},queueMicrotask,requestAnimationFrame:callback=>{callback();return 1;},setTimeout:(callback,ms)=>{const id=++timerId;logs.timers.set(id,{callback,ms});return id;},clearTimeout:id=>logs.timers.delete(id),setInterval:(callback,ms)=>{const id=++timerId;logs.timers.set(id,{callback,ms,interval:true});return id;},clearInterval:id=>logs.timers.delete(id),IntersectionObserver:class{constructor(callback){this.callback=callback;logs.observers.push(this);}observe(target){this.target=target;}},getContext:()=>({section:'hero'}),executeSiteAction:(...args)=>{logs.actions.push(args);return {ok:true};},revealAgentHome:()=>{},setOrbState:state=>logs.orb.push(state),setOrbLevel:()=>{},setOrbAudioReader:()=>{},refreshOrbs:()=>{},requestHaptic:()=>{},mountNativeHapticToggle:control=>{if(!nativeControls)return null;const native=new Element('input',doc);control.append(native);control.native=native;return native;}});
   vm.runInContext(compiled,context,{filename:sourcePath});
   context.fetch=fetch;
   const api=context.probe;
@@ -84,17 +85,18 @@ function installActor(h){
     if(!h.nodes.has('#'+id)){const el=new Element('section',h.doc);el.id=id;h.nodes.set('#'+id,el);h.doc.body.append(el);}h.nodes.get('#'+id).append(new Element('h2',h.doc));
   }
   h.nodes.get('#case-view').append(new Element('h1',h.doc));h.nodes.get('#privacy-view').append(new Element('h1',h.doc));
-  const contactInput=new Element('input',h.doc);h.nodes.get('#contact').append(contactInput);for(const name of ['name','contact','message']){const node=name==='name'?contactInput:new Element(name==='message'?'textarea':'input',h.doc);h.nodes.set('#contact-form [name='+name+']',node);h.nodes.get('#contact-form').append(node);if(name==='message')h.nodes.set('#contact-form textarea',node);}
+  const contactInput=new Element('input',h.doc);h.nodes.get('#contact').append(contactInput);for(const name of ['name','contact','message','consent']){const node=name==='name'?contactInput:new Element(name==='message'?'textarea':'input',h.doc);h.nodes.set('#contact-form [name='+name+']',node);h.nodes.get('#contact-form').append(node);if(name==='message')h.nodes.set('#contact-form textarea',node);}
+  const submit=new Element('button',h.doc),status=new Element('p',h.doc);status.className='form-status';h.nodes.get('#contact-form').append(submit,status);
   h.doc.getElementById=id=>h.nodes.get('#'+id)??null;
   let current=new URL('https://example.test/');const location={};for(const key of ['pathname','hash','href','origin'])Object.defineProperty(location,key,{get:()=>current[key]});
   const browserHistory={state:{},replaceState(state,title,path){this.state=state;if(path)current=new URL(path,current);},pushState(state,title,path){this.state=state;current=new URL(path,current);}};
   h.win.scrollY=0;h.win.scrollTo=({top})=>{h.win.scrollY=top;};
-  const ctx=vm.createContext({document:h.doc,window:h.win,location,history:browserHistory,siteFixture:site,agentFixture:h.api,innerWidth:390,URL,Event,CustomEvent:class{constructor(type,options={}){this.type=type;this.detail=options.detail;}},requestAnimationFrame:fn=>fn(),setTimeout:()=>1,clearTimeout:()=>{},refreshOrbs:()=>{},activateOrb:()=>{},console});
+  const ctx=vm.createContext({document:h.doc,window:h.win,location,history:browserHistory,siteFixture:site,agentFixture:h.api,crypto,innerWidth:390,URL,Event,CustomEvent:class{constructor(type,options={}){this.type=type;this.detail=options.detail;}},requestAnimationFrame:fn=>fn(),setTimeout:()=>1,clearTimeout:()=>{},refreshOrbs:()=>{},activateOrb:()=>{},console});
   const prefix=`const site=siteFixture; const agentModule=agentFixture; const $=(s,root=document)=>root.querySelector(s); const escape=value=>String(value??''); const reduced={matches:false}; const state={section:'home',caseId:null,page:location.pathname}; let contactFlow=false; const arrow=''; let toastTimer;`;
-  const selected=prefix+take('function visual(', 'function renderCases(')+take('function casePage(', "document.addEventListener('click'")+take('function contactContext()', 'const form=');
-  vm.runInContext(selected.replace(/^export\s+/gm,''),ctx,{filename:appPath});vm.runInContext('globalThis.actor={executeSiteAction,getContext,navigate,renderRoute,focusDestination};',ctx);
+  const selected=prefix+take('function visual(', 'function renderCases(')+take('function casePage(', "document.addEventListener('click'")+take('function contactContext()', 'const form=')+take('const form=',"form.addEventListener('submit'");
+  vm.runInContext(selected.replace(/^export\s+/gm,''),ctx,{filename:appPath});vm.runInContext('globalThis.actor={executeSiteAction,getContext,navigate,renderRoute,focusDestination,formState:()=>({requestId,submitted})};',ctx);
   h.context.executeSiteAction=ctx.actor.executeSiteAction;
-  return {actor:ctx.actor,site,location,contactInput,appSha:crypto.createHash('sha256').update(app).digest('hex')};
+  return {actor:ctx.actor,site,location,contactInput,ctx,submit,status,appSha:crypto.createHash('sha256').update(app).digest('hex')};
 }
 function expect(condition,message){if(!condition)throw new Error(message);}
 const audioResponse=id=>({id,status:'completed',output:[{type:'message',role:'assistant',content:[{type:'output_audio',transcript:'Ответ'}]}]});
@@ -160,16 +162,16 @@ async function check(name,run){try{await run();results.push({name,ok:true});}cat
     h.event('response.created',{response:{id:'r2'}});h.api.interrupt();expect(h.logs.sent.at(-3).response_id==='r2'&&h.api.state().cancelAwaitIds.includes('r2'),'new turn cancel did not target r2');
     h.event('response.done',{response:{id:'r2',status:'cancelled',output:[]}});expect(h.api.state().micEnabled[0],'cancel before audio did not unlock after done');
   });
-  await check('mobile focus alone inline; viewport shrink typing; restored inline',async()=>{
+  await check('mobile chat focus alone stays local; viewport shrink typing; restored local',async()=>{
     const h=harness();h.api.open({mode:'text'});const panel=h.nodes.get('#agent-panel'),input=h.nodes.get('#agent-input');input.focus();h.api.updateViewport();expect(!panel.classList.contains('is-typing'),'focus without shrink entered typing');
-    h.win.visualViewport.height=520;h.win.visualViewport.offsetTop=14;h.api.updateViewport();expect(panel.classList.contains('is-typing'),'keyboard shrink did not enter typing');expect(panel.style['--agent-viewport-height']==='520px'&&panel.style['--agent-viewport-top']==='14px','viewport CSS variables wrong');
-    h.win.visualViewport.height=844;h.win.visualViewport.offsetTop=0;h.api.updateViewport();expect(!panel.classList.contains('is-typing')&&h.api.state().presentation==='inline','restored viewport did not return inline');
+    h.win.visualViewport.height=520;h.win.visualViewport.offsetTop=14;h.api.updateViewport();expect(panel.classList.contains('is-typing'),'keyboard shrink did not enter typing');expect(h.nodes.get('#agent-overlay').style['--agent-viewport-height']==='520px'&&h.nodes.get('#agent-overlay').style['--agent-viewport-top']==='14px','viewport CSS variables wrong');
+    h.win.visualViewport.height=844;h.win.visualViewport.offsetTop=0;h.api.updateViewport();expect(!panel.classList.contains('is-typing')&&h.api.state().presentation==='overlay','restored viewport did not return local sheet');
   });
   await check('observer collapses only after seen; typing suppresses collapse; resume resets seen',async()=>{
-    const h=harness();h.api.open({mode:'text'});const observer=h.logs.observers.find(x=>x.target===h.nodes.get('.hero-orb-button'));expect(h.api.state().presentation==='inline','initial open not inline');
+    const h=harness();h.api.open({mode:'voice',activate:false});const observer=h.logs.observers.find(x=>x.target===h.nodes.get('.hero-art'));expect(h.api.state().presentation==='inline','initial open not inline');
     observer.callback([{isIntersecting:true}]);h.nodes.get('#agent-input').focus();h.win.visualViewport.height=520;h.api.updateViewport();observer.callback([{isIntersecting:false}]);expect(h.api.state().presentation==='inline','keyboard typing triggered collapse');
     h.win.visualViewport.height=844;h.api.updateViewport();observer.callback([{isIntersecting:false}]);expect(h.api.state().presentation==='dock'&&h.api.state().sessionActive,'seen workspace did not collapse');
-    h.api.open({mode:'text'});observer.callback([{isIntersecting:true}]);observer.callback([{isIntersecting:false}]);expect(h.api.state().presentation==='dock','resumed observer no longer collapses');
+    h.api.open({mode:'voice',activate:false});observer.callback([{isIntersecting:true}]);observer.callback([{isIntersecting:false}]);expect(h.api.state().presentation==='dock','resumed observer no longer collapses');
   });
   for(const kind of ['typed','speech','tool'])await check(`stale done preserves pending ${kind} new response before created`,async()=>{
     const h=harness();await h.connect();h.event('response.created',{response:{id:'r1'}});
@@ -211,10 +213,10 @@ async function check(name,run){try{await run();results.push({name,ok:true});}cat
     const h=harness();const {peer,track}=await h.connect();const generation=h.api.state().voiceGeneration;peer.connectionState='disconnected';peer.onconnectionstatechange();expect(h.api.state().voiceActive&&!track.enabled&&!track.stopped&&!peer.closed,'disconnect instantly closed media');expect(h.nodes.get('#agent-dock').dataset.mic==='paused'&&h.nodes.get('#agent-dock-state').textContent.includes('Восстанавливаю'),'disconnect not visibly paused');const timer=[...h.logs.timers.values()].find(t=>t.ms===8000&&!t.interval);expect(Boolean(timer),'recovery timer missing');peer.connectionState='connected';peer.onconnectionstatechange();expect(track.enabled&&h.api.state().voiceGeneration===generation&&h.api.getAgentDiagnostics().recoveries===1,'connected did not recover same session');expect(![...h.logs.timers.values()].some(t=>t.ms===8000&&!t.interval),'recovery timer retained');
   });
   await check('expired disconnect releases media and enables reconnect control',async()=>{
-    const h=harness();const {peer,track}=await h.connect();peer.connectionState='disconnected';peer.onconnectionstatechange();const timer=[...h.logs.timers.values()].find(t=>t.ms===8000&&!t.interval);timer.callback();expect(!h.api.state().voiceActive&&track.stopped&&peer.closed&&h.api.state().sessionActive,'recovery expiry leaked media/closed conversation');expect(h.nodes.get('#agent-dock').dataset.mic==='off'&&h.nodes.get('#agent-voice-stop').textContent==='Включить микрофон','expiry control not reset');expect(h.api.state().error.includes('Соединение прервалось'),'expiry error absent');
+    const h=harness();const {peer,track}=await h.connect();peer.connectionState='disconnected';peer.onconnectionstatechange();const timer=[...h.logs.timers.values()].find(t=>t.ms===8000&&!t.interval);timer.callback();expect(!h.api.state().voiceActive&&track.stopped&&peer.closed&&h.api.state().sessionActive,'recovery expiry leaked media/closed conversation');expect(h.nodes.get('#agent-dock').dataset.mic==='error'&&h.nodes.get('#agent-voice-stop').textContent==='Включить микрофон','expiry control not reset');expect(h.api.state().error.includes('Соединение прервалось'),'expiry error absent');
   });
   await check('hero reentry restores inline without scrolling or resetting mode',async()=>{
-    const h=harness();h.api.open({mode:'text'});const generation=h.api.state().conversationGeneration,observer=h.logs.observers.find(x=>x.target===h.nodes.get('.hero-orb-button'));observer.callback([{isIntersecting:false}]);expect(h.api.state().presentation==='dock','hero exit did not dock');h.win.scrollY=0;observer.callback([{isIntersecting:true}]);expect(h.api.state().presentation==='inline'&&h.nodes.get('.hero-art').classList.contains('is-agent-active'),'hero reentry did not restore inline');expect(h.api.state().conversationGeneration===generation&&h.api.state().mode==='text'&&h.win.scrollY===0,'reentry reset or scrolled');
+    const h=harness();h.api.open({mode:'voice',activate:false});const generation=h.api.state().conversationGeneration,observer=h.logs.observers.find(x=>x.target===h.nodes.get('.hero-art'));observer.callback([{isIntersecting:false}]);expect(h.api.state().presentation==='dock','hero exit did not dock');h.win.scrollY=0;observer.callback([{isIntersecting:true}]);expect(h.api.state().presentation==='inline'&&h.nodes.get('.hero-art').classList.contains('is-agent-active'),'hero reentry did not restore inline');expect(h.api.state().conversationGeneration===generation&&h.api.state().mode==='voice'&&h.win.scrollY===0,'reentry reset or scrolled');
   });
   await check('contact flow partial drafts preserve fields; cancel keeps draft; career action exists',async()=>{
     const h=harness(),app=installActor(h);h.api.open({mode:'text'});const a=app.actor.executeSiteAction('begin_contact_request');expect(a.contact_request,'begin contact flow absent');app.actor.executeSiteAction('prepare_contact_request','','Описание',{name:'Тест',contact:'@example'});app.actor.executeSiteAction('prepare_contact_request','','Уточнённая задача',{});const ctx=app.actor.getContext();expect(ctx.contact_draft.name==='Тест'&&ctx.contact_draft.contact==='@example'&&ctx.contact_draft.message==='Уточнённая задача','partial draft cleared fields');app.actor.executeSiteAction('cancel_contact_request');expect(!app.actor.getContext().contact_request&&!('contact_draft' in app.actor.getContext())&&h.nodes.get('#contact-form [name=name]').value==='Тест','cancel cleared draft or exposed inactive draft');const career=app.site.career.find(x=>x.id);const result=app.actor.executeSiteAction('show_career',career.id);expect(result.ok&&h.nodes.get('#career-'+career.id).scrolled,'career action unavailable');
@@ -225,6 +227,54 @@ async function check(name,run){try{await run();results.push({name,ok:true});}cat
     const active=h.logs.sent.filter(e=>e.type==='session.update').at(-1);expect(active.session.instructions.includes('Сейчас помогаешь составить контактный запрос')&&active.session.instructions.includes('Тест'),'voice interview instructions absent');
     h.win.dispatchEvent(new h.context.CustomEvent('site-context',{detail:{contact_request:false}}));
     expect(h.logs.sent.filter(e=>e.type==='session.update').at(-1).session.instructions==='Original website helper instructions','normal voice instructions not restored');
+  });
+  await check('stable host and hysteresis prevent hero/dock oscillation',async()=>{
+    const h=harness();h.api.open({mode:'voice',activate:false});const panel=h.nodes.get('#agent-panel'),host=panel.parentNode,hero=h.nodes.get('.hero-art'),foot=h.nodes.get('#agent-home-space');
+    const children=[...hero.children];const observer=h.logs.observers.find(x=>x.target===hero);observer.callback([{isIntersecting:true,intersectionRatio:1}]);observer.callback([{isIntersecting:true,intersectionRatio:.1}]);
+    expect(h.api.state().presentation==='dock','scroll exit did not dock');
+    for(const ratio of [.2,.4,.65,.79,.6])observer.callback([{isIntersecting:true,intersectionRatio:ratio}]);
+    expect(h.api.state().presentation==='dock','partial visibility oscillated to hero');
+    observer.callback([{isIntersecting:true,intersectionRatio:.85}]);expect(h.api.state().presentation==='inline','fully visible stationary hero did not restore');
+    for(const ratio of [.7,.5,.2])observer.callback([{isIntersecting:true,intersectionRatio:ratio}]);expect(h.api.state().presentation==='inline','hysteresis failed while moving away');
+    h.api.collapse();observer.callback([{isIntersecting:true,intersectionRatio:1}]);expect(h.api.state().presentation==='dock','manual collapse instantly expanded again');h.resume();
+    expect(panel.parentNode===host&&host===h.nodes.get('#agent-overlay'),'transition reparented panel');expect(hero.children.length===children.length&&hero.children.every((node,i)=>node===children[i])&&foot.parentNode===hero,'hero footprint nodes changed');
+    expect(!source.includes('flight.animate')&&!source.includes('source.width')&&!source.includes('hero.insertBefore(panel'),'heavy canvas flight still present');
+  });
+  await check('native mic change applies desired state once and synchronizes every control',async()=>{
+    const h=harness({nativeControls:true});h.api.open({mode:'voice',activate:false});const native=h.nodes.get('#agent-voice-stop').native;
+    native.checked=true;native.dispatchEvent({type:'change'});await tick();const peer=h.logs.peers.at(-1);peer.channel.readyState='open';peer.channel.onopen();
+    expect(h.api.state().voiceActive&&h.api.state().micEnabled[0],'native mic on not listening');native.dispatchEvent({type:'change'});await tick();expect(h.logs.peers.length===1&&h.api.state().voiceActive,'duplicate on event toggled off');
+    expect(['#agent-voice-toggle','#agent-dock-voice','#agent-voice-stop'].every(id=>h.nodes.get(id).native.checked),'native controls not synchronized');
+    native.checked=false;native.dispatchEvent({type:'change'});expect(!h.api.state().voiceActive&&h.logs.streams.at(-1).getTracks()[0].stopped,'native off leaked track');native.dispatchEvent({type:'change'});await tick();expect(h.logs.peers.length===1&&!h.api.state().connecting,'duplicate off event reconnected');
+  });
+  await check('voice stays active beyond five minutes with no application duration timer',async()=>{
+    const h=harness();await h.connect();expect(![...h.logs.timers.values()].some(t=>!t.interval&&t.ms>=5*60*1000),'application ended voice after five minutes');expect(h.api.state().voiceActive,'active voice stopped');
+  });
+  await check('failed mic connection is visible in the collapsed dock and can retry',async()=>{
+    const h=harness();h.api.open({mode:'voice',activate:false});h.api.collapse();const normal=h.context.fetch;h.context.fetch=async()=>({ok:false,json:async()=>({error:'Соединение временно недоступно'})});await h.api.startVoice();
+    expect(!h.api.state().voiceActive&&!h.api.state().connecting&&h.logs.streams.at(-1).getTracks()[0].stopped,'failed start retained mic');expect(h.nodes.get('#agent-dock').dataset.mic==='error'&&h.nodes.get('#agent-dock-state').textContent.includes('повторить'),'dock hid failure as ordinary off');
+    h.context.fetch=normal;await h.api.startVoice();const peer=h.logs.peers.at(-1);peer.channel.readyState='open';peer.channel.onopen();expect(h.api.state().voiceActive&&h.nodes.get('#agent-dock').dataset.mic==='listening'&&!h.api.state().error,'retry did not listen');
+  });
+  await check('clear contact draft empties fields and consent immediately without submit',async()=>{
+    const h=harness(),app=installActor(h);h.api.open({mode:'text'});app.actor.executeSiteAction('prepare_contact_request','','Сравнение документов',{name:'Тест',contact:'@example'});h.nodes.get('#contact-form [name=consent]').checked=true;
+    const form=h.nodes.get('#contact-form');let edits=0,submits=0;form.addEventListener('input',()=>edits++);form.addEventListener('submit',()=>submits++);const requests=h.logs.requests.length;
+    const result=app.actor.executeSiteAction('clear_contact_request','all');expect(result.ok&&result.draftCleared==='all'&&result.scope==='draft','clear result absent');
+    expect(['name','contact','message'].every(key=>h.nodes.get('#contact-form [name='+key+']').value==='')&&!h.nodes.get('#contact-form [name=consent]').checked,'fields or consent retained');expect(!app.actor.getContext().contact_request&&!('contact_draft' in app.actor.getContext()),'deleted draft retained in active context');expect(edits===1&&submits===0&&h.logs.requests.length===requests,'clear submitted or skipped lifecycle');
+  });
+  await check('clearing a draft resets actual submit lifecycle and stale status',async()=>{
+    const h=harness(),app=installActor(h);app.actor.executeSiteAction('prepare_contact_request','','Описание',{name:'Тест',contact:'@example'});const old=app.actor.formState().requestId;
+    vm.runInContext('submitted=true;form.dataset.submitted="true";',app.ctx);app.submit.disabled=true;app.submit.textContent='Сообщение отправлено';app.status.textContent='Спасибо! Сообщение сохранено.';
+    app.actor.executeSiteAction('clear_contact_request','all');expect(!app.actor.formState().submitted&&app.actor.formState().requestId!==old,'clear retained submitted request identity');expect(!app.submit.disabled&&app.submit.textContent==='Отправить сообщение'&&!app.status.textContent,'clear retained old button or status');
+  });
+  await check('partial draft clearing preserves other fields and rejects unknown target atomically',async()=>{
+    const h=harness(),app=installActor(h);app.actor.executeSiteAction('prepare_contact_request','','Сравнение документов',{name:'Тест',contact:'@example'});app.actor.executeSiteAction('clear_contact_request','contact');
+    expect(h.nodes.get('#contact-form [name=name]').value==='Тест'&&h.nodes.get('#contact-form [name=message]').value==='Сравнение документов'&&h.nodes.get('#contact-form [name=contact]').value==='','partial clear erased other fields');
+    let rejected=false;try{app.actor.executeSiteAction('clear_contact_request','database');}catch{rejected=true;}expect(rejected&&h.nodes.get('#contact-form [name=name]').value==='Тест','invalid target modified draft');
+  });
+  await check('real voice clear tool routes field and confirms without reopening interview',async()=>{
+    const h=harness(),app=installActor(h);await h.connect();h.event('session.created',{session:{instructions:'Normal assistant instructions'}});app.actor.executeSiteAction('prepare_contact_request','','Сравнение документов',{name:'Тест',contact:'@example'});
+    h.event('response.created',{response:{id:'clear1'}});h.event('response.function_call_arguments.done',{response_id:'clear1',name:'clear_contact_request',call_id:'call-clear',arguments:'{"field":"all"}'});h.event('response.done',{response:{id:'clear1',status:'completed',output:[]}});
+    expect(h.nodes.get('#contact-form [name=contact]').value===''&&!app.actor.getContext().contact_request,'voice clear did not mutate form');const next=h.logs.sent.filter(e=>e.type==='response.create').at(-1);expect(next.response.instructions.includes('формы очищены')&&!next.response.instructions.includes('Как вас зовут'),'voice clear restarted interview');expect(h.logs.sent.filter(e=>e.type==='session.update').at(-1).session.instructions==='Normal assistant instructions','voice clear kept draft instructions');
   });
   await check('contact rejects long field atomically and preserves previous draft',async()=>{
     const h=harness(),app=installActor(h);app.actor.executeSiteAction('prepare_contact_request','','Задача',{name:'Тест',contact:'@example'});

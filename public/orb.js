@@ -78,7 +78,7 @@ const coarse=matchMedia('(pointer: coarse)');
 let mode='idle',level=0,phase=1.8,energy=0,speed=.93,tapDrive=0,impulse=0,flash=0;
 let pointerScreen=null,smoothPointer=[0,0];
 let frame=0,last=0,drawCount=0,settleTimer=0;
-let engine,targets=[],initialized=false,audioReader=null;
+let engine,targets=[],initialized=false,audioReader=null,targetCache=[],targetsDirty=true,visibilityReads=0;
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
 const seed=x=>{const value=Math.sin(x*1.713+2.91)*1939.37;return value-Math.floor(value);};
 const mobile=()=>coarse.matches||innerWidth<=650;
@@ -109,9 +109,12 @@ function makeEngine(){
   }catch{return{surface:document.createElement('canvas'),fallback:true};}
 }
 function visibleTargets(){
+  if(!targetsDirty)return targetCache;
+  targetsDirty=false;visibilityReads++;
   const modal=document.querySelector('dialog[open]');
   const styles=new Map();
-  return targets.filter(({node})=>{
+  targetCache=targets.filter(target=>{
+    const {node}=target;
     const dialog=node.closest('dialog');
     if(dialog&&!dialog.open||modal&&!dialog||node.closest('[hidden]'))return false;
     if(node.closest('.floating-agent')&&document.body.classList.contains('hero-visible'))return false;
@@ -126,8 +129,10 @@ function visibleTargets(){
       if(style?.display==='none'||style?.visibility==='hidden'||style?.visibility==='collapse')return false;
     }
     const rect=node.getBoundingClientRect();
+    target.rect=rect;target.width=rect.width;
     return rect.width>0&&rect.height>0&&rect.bottom>0&&rect.top<innerHeight&&rect.right>0&&rect.left<innerWidth;
   });
+  return targetCache;
 }
 function paintFallback(size,particles){
   const ctx=engine.surface.getContext('2d');
@@ -204,7 +209,7 @@ function render(now,force=false){
   if(!reduced.matches)phase+=dt*(speed+impulse*.38);
   else smoothPointer=lightTarget;
   const pixelRatio=Math.min(devicePixelRatio||1,compact?1.35:1.5),cap=compact?440:600;
-  const size=Math.min(cap,Math.max(96,...active.map(({node})=>Math.ceil(node.clientWidth*pixelRatio))));
+  const size=Math.min(cap,Math.max(96,...active.map(({width})=>Math.ceil(width*pixelRatio))));
   if(engine.surface.width!==size||engine.surface.height!==size){engine.surface.width=size;engine.surface.height=size;}
   const particles=compact?7:12;
   if(engine.fallback)paintFallback(size,particles);
@@ -215,8 +220,8 @@ function render(now,force=false){
     gl.uniform1f(uniforms.flash,flash);gl.uniform1f(uniforms.particles,particles);gl.uniform2f(uniforms.pointer,...smoothPointer);
     gl.drawArrays(gl.TRIANGLES,0,6);
   }
-  for(const{node,ctx}of active){
-    const targetSize=Math.min(cap,Math.max(48,Math.round(node.clientWidth*pixelRatio)));
+  for(const{node,ctx,width}of active){
+    const targetSize=Math.min(cap,Math.max(48,Math.round(width*pixelRatio)));
     if(node.width!==targetSize||node.height!==targetSize){node.width=targetSize;node.height=targetSize;}
     ctx.clearRect(0,0,targetSize,targetSize);ctx.drawImage(engine.surface,0,0,targetSize,targetSize);
   }
@@ -230,8 +235,8 @@ function orbFromEvent(event){
 function pointerLightTarget(active){
   if(!pointerScreen)return[0,0];
   let nearest=null;
-  for(const{node}of active){
-    const rect=node.getBoundingClientRect();if(!rect.width||!rect.height)continue;
+  for(const{rect}of active){
+    if(!rect.width||!rect.height)continue;
     const x=(pointerScreen.x-rect.left-rect.width/2)/(rect.width/2);
     const y=(rect.top+rect.height/2-pointerScreen.y)/(rect.height/2);
     const distance=Math.hypot(x,y);
@@ -254,9 +259,16 @@ function pulse(){
 export function initOrbs(){
   if(initialized)return;initialized=true;engine=makeEngine();
   targets=[...document.querySelectorAll('[data-live-orb]')].map(node=>({node,ctx:node.getContext('2d',{alpha:true})})).filter(target=>target.ctx);
-  const observer=new IntersectionObserver(schedule);targets.forEach(target=>observer.observe(target.node));
-  document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(frame);frame=0;last=0;}else schedule();});
-  window.addEventListener('resize',schedule,{passive:true});window.addEventListener('scroll',schedule,{passive:true});
+  const observer=new IntersectionObserver(refreshOrbs);targets.forEach(target=>observer.observe(target.node));
+  const resizeObserver=new ResizeObserver(refreshOrbs);targets.forEach(target=>resizeObserver.observe(target.node));
+  // CSS presentation changes are infrequent. Never walk styles or measure the
+  // layout at shader frame rate, including the frames skipped by throttling.
+  const presentationObserver=new MutationObserver(refreshOrbs);
+  for(const element of [document.body,document.querySelector('.hero-art'),document.querySelector('#agent-overlay'),document.querySelector('#agent-panel'),document.querySelector('#agent-dock')].filter(Boolean))presentationObserver.observe(element,{attributes:true,attributeFilter:['hidden','class','data-presentation']});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(frame);frame=0;last=0;}else refreshOrbs();});
+  window.addEventListener('resize',refreshOrbs,{passive:true});window.addEventListener('scroll',refreshOrbs,{passive:true});
+  window.visualViewport?.addEventListener('resize',refreshOrbs,{passive:true});window.visualViewport?.addEventListener('scroll',refreshOrbs,{passive:true});
+  document.fonts?.ready.then(refreshOrbs);
   document.addEventListener('pointermove',event=>{
     if(event.pointerType==='touch'||event.isPrimary===false)return;
     pointerScreen={x:event.clientX,y:event.clientY};schedule();
@@ -274,13 +286,13 @@ export function initOrbs(){
   });
   window.addEventListener('blur',()=>{pointerScreen=null;schedule();});
   window.addEventListener('pagehide',()=>{cancelAnimationFrame(frame);clearTimeout(settleTimer);frame=0;last=0;});
-  window.addEventListener('pageshow',schedule);
+  window.addEventListener('pageshow',refreshOrbs);
   reduced.addEventListener('change',()=>{clearTimeout(settleTimer);last=0;tapDrive=0;impulse=0;flash=0;pointerScreen=null;smoothPointer=[0,0];schedule();});
   schedule();
 }
 export function setOrbState(next){mode=modes.includes(next)?next:'idle';document.documentElement.dataset.orbState=mode;schedule();}
 export function setOrbLevel(value){level=clamp(Number(value)||0);schedule();}
 export function setOrbAudioReader(reader){audioReader=typeof reader==='function'?reader:null;if(!audioReader)level=0;schedule();}
-export function refreshOrbs(){schedule();}
-export function getOrbDiagnostics(){return{renderer:engine?.fallback?'canvas':'webgl',state:mode,frames:drawCount,energy,renderSize:engine?.surface.width,visible:visibleTargets().length,reducedMotion:reduced.matches,particles:mobile()?7:12};}
+export function refreshOrbs(){targetsDirty=true;schedule();}
+export function getOrbDiagnostics(){return{renderer:engine?.fallback?'canvas':'webgl',state:mode,frames:drawCount,visibilityReads,energy,renderSize:engine?.surface.width,visible:visibleTargets().length,reducedMotion:reduced.matches,particles:mobile()?7:12};}
 export function activateOrb(){pulse();}

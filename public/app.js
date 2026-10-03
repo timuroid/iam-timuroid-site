@@ -33,7 +33,7 @@ function roleCard(e){
   return `<article class="experience-card primary-role" id="${escape(e.id)}"><div class="role-brand"><img class="${isSteel?'digital-logo':''}" src="${isSteel?'/logo-digital-steel-light.svg':'/logo-bmstu.png'}" alt="${escape(e.place)}" loading="lazy" width="240" height="61"></div><h3>${escape(e.title)}</h3><p>${escape(e.description)}</p>${media}</article>`;
 }
 $('#experience-list').innerHTML = [...site.experience].sort((a,b)=>['digital-steel','bmstu-teaching','bmstu-research'].indexOf(a.id)-['digital-steel','bmstu-teaching','bmstu-research'].indexOf(b.id)).map(roleCard).join('');
-$('#career-list').innerHTML = [...site.career].reverse().map(c=>`<article class="career-card ${c.current?'current':''}" id="career-${escape(c.id)}"><span class="career-period">${escape(c.period)}</span><div class="career-content"><div class="career-brand">${c.current?'<i class="current-mark" aria-hidden="true"></i>':''}<span>${escape(c.company)}</span></div><h3>${escape(c.role)}</h3><p>${escape(c.description)}</p></div></article>`).join('');
+$('#career-list').innerHTML = [...site.career].reverse().map(c=>`<article class="career-card ${c.current?'current':''}" id="career-${escape(c.id)}"><span class="career-period">${escape(c.period)}</span><div class="career-content"><div class="career-brand"><span>${escape(c.company)}</span></div><h3>${escape(c.role)}</h3><p>${escape(c.description)}</p></div></article>`).join('');
 $('#research-grid').innerHTML = site.research.map((r,i)=>r.url?`<div class="research-reference"><a href="${escape(r.url)}" target="_blank" rel="noopener"><span class="reference-number">[${i+1}]</span><span>${escape(r.originalTitle||r.title)}</span></a><p>${escape(r.meta)}</p></div>`:`<details class="research-reference"><summary><span class="reference-number">[${i+1}]</span><span>${escape(r.originalTitle||r.title)}</span></summary><p>${escape(r.meta)}. ${escape(r.description)}</p></details>`).join('');
 $('#education-list').innerHTML = site.education.map(e=>`<div><h3>${escape(e.title)}</h3><p>${escape(e.description)}</p>${e.practice?`<p class="education-practice">${escape(e.practice)}</p>`:''}</div>`).join('');
 $('#practice-grid').innerHTML = site.practice.map(p=>`<article class="practice-card"><h3>${escape(p.title)}</h3><p>${escape(p.description)}</p></article>`).join('');
@@ -114,6 +114,18 @@ export function executeSiteAction(action,target='',summary='',draft={}) {
   const sections=['home','cases','services','experience','tools','contact','path','research','practice'];
   if(action==='none')return{ok:true};
   if(action==='cancel_contact_request'){contactFlow=false;window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));return{ok:true,contact_request:false};}
+  if(action==='clear_contact_request'){
+    const field=target||'all';
+    if(!['all','name','contact','message'].includes(field))throw new Error('Неизвестное поле формы');
+    const fields=field==='all'?['name','contact','message']:[field];
+    for(const key of fields)$(`#contact-form [name=${key}]`).value='';
+    $('#contact-form [name=consent]').checked=false;contactFlow=false;
+    // Reuse the form's edit lifecycle; clearing a draft never submits a request.
+    $('#contact-form').dispatchEvent(new Event('input',{bubbles:true}));
+    $('#contact-form').dispatchEvent(new Event('contact-clear'));
+    window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));
+    return{ok:true,draftCleared:field,contact_request:false,scope:'draft'};
+  }
   if(!['show_section','show_case','show_experience','show_career','begin_contact_request','open_contact','prepare_contact_request'].includes(action))throw new Error('Неизвестное действие');
   if(action==='show_case'){
     const c=site.cases.find(c=>c.id===target);if(!c)throw new Error('Неизвестный кейс');
@@ -124,7 +136,7 @@ export function executeSiteAction(action,target='',summary='',draft={}) {
     if(!collection.some(item=>item.id===target))throw new Error('Неизвестная карточка опыта');
     agentModule?.collapse();if(location.pathname!=='/')navigate('/',{scroll:false});
     const card=document.getElementById(action==='show_career'?`career-${target}`:target);
-    card.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});highlight(card);focusDestination(card);
+    card.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});focusDestination(card);
     return{ok:true,[action==='show_career'?'career':'experience']:target,display:'page'};
   }
   if(['open_contact','prepare_contact_request','begin_contact_request'].includes(action))target='contact';
@@ -143,15 +155,21 @@ export function executeSiteAction(action,target='',summary='',draft={}) {
   // Updating an already visible draft does not scroll or animate the page again.
   if(!(action==='prepare_contact_request'&&state.section==='contact'&&location.pathname==='/')){
     agentModule?.collapse();if(location.pathname!=='/')navigate('/',{scroll:false});
-    const section=document.getElementById(target);section.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});highlight(section);focusDestination(section);
+    const section=document.getElementById(target);section.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});focusDestination(section);
   }
   state.section=target;window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));
   return{ok:true,section:target,display:'page',draftPrepared:action==='prepare_contact_request',...contactContext()};
 }
-function highlight(el){el.classList.remove('tour-highlight');requestAnimationFrame(()=>el.classList.add('tour-highlight'));setTimeout(()=>el.classList.remove('tour-highlight'),2200);}
 
 const form=$('#contact-form');let requestId=crypto.randomUUID();let submitted=false;
 form.addEventListener('input',()=>{if(submitted){submitted=false;form.dataset.submitted='false';requestId=crypto.randomUUID();const button=$('button[type=submit]',form);button.disabled=form.dataset.dictating==='true'||form.dataset.pending==='true';button.textContent='Отправить сообщение';$('.form-status',form).textContent='';}});
+form.addEventListener('contact-clear',()=>{
+  submitted=false;form.dataset.submitted='false';requestId=crypto.randomUUID();
+  const button=$('button[type=submit]',form),status=$('.form-status',form);
+  button.disabled=form.dataset.pending==='true';button.textContent='Отправить сообщение';
+  status.textContent='';status.className='form-status';
+});
+form.addEventListener('change',()=>window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()})));
 form.addEventListener('submit',async e=>{
   e.preventDefault();if(form.dataset.pending==='true'||form.dataset.dictating==='true'||!form.reportValidity())return;
   const button=$('button[type=submit]',form),status=$('.form-status',form);const oldText=button.innerHTML;

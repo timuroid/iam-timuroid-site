@@ -7,7 +7,8 @@
   <title>TIMUROID — Тимур Кирибаев</title>
   <meta name="description" content="Тимур Кирибаев: AI-разработка в «Цифровой стали», исследования и преподавание в МГТУ имени Баумана. Проекты и работа с ИИ на практике.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="preload" href="/manrope.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="/golos-text.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="/lora-italic.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/app.js"></script>
 </head>
@@ -31,21 +32,11 @@
         </div>
         <div class="hero-art">
           <button class="hero-orb-button" data-open-agent aria-label="Поговорить с ИИ-агентом — включить микрофон"><canvas class="orb-image live-orb" data-live-orb="hero" width="560" height="560" aria-hidden="true"></canvas></button>
-          <section class="agent-workspace" id="agent-panel" aria-labelledby="agent-title" data-mode="text" hidden>
-            <div class="agent-header"><div><strong id="agent-title" tabindex="-1">Разговор</strong><span id="agent-state" class="agent-state" role="status">Обо мне, проектах и вашей задаче</span></div><div class="agent-header-actions"><button class="agent-icon-button close-agent" type="button" aria-label="Завершить разговор">×</button></div></div>
-            <div class="agent-messages" id="agent-messages" aria-live="polite" aria-label="Диалог с агентом"></div>
-            <div class="voice-panel" id="voice-panel" hidden>
-              <div class="agent-voice-state" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6" stroke="currentColor" stroke-width="1.6"/><path class="mic-slash" d="m4 4 16 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
-              <p id="voice-status" role="status">Подключаюсь…</p><p id="voice-caption"></p>
-              <div class="agent-voice-actions"><button id="agent-voice-stop" class="button primary" type="button">Выключить микрофон</button><button id="agent-to-text" class="agent-to-text" type="button">Написать</button></div>
-              <button class="agent-interrupt" id="agent-interrupt" type="button" hidden>Перебить</button>
-            </div>
-            <p class="agent-error" id="agent-error" role="status" hidden></p>
-            <div class="agent-suggestions" id="agent-suggestions" aria-label="Темы для разговора"><button data-agent-prompt="Покажи проекты Тимура" type="button">Проекты</button><button data-agent-prompt="Расскажи, чем занимается Тимур" type="button">О Тимуре</button><button data-agent-prompt="Помоги описать мою задачу для Тимура" type="button">Моя задача</button></div>
-            <div class="agent-composer"><form id="agent-form"><label class="sr-only" for="agent-input">Ваш вопрос агенту</label><input id="agent-input" placeholder="Спросите что-нибудь…" maxlength="1500" autocomplete="off" enterkeyhint="send"><button id="agent-voice-toggle" class="agent-voice-toggle" type="button" aria-label="Поговорить голосом" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6" stroke="currentColor" stroke-width="1.6"/></svg></button><button id="agent-send" class="agent-send" aria-label="Отправить вопрос" type="submit"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></form></div>
-          </section>
+
+          <div class="agent-home-space" id="agent-home-space">
           <div class="agent-entry-actions"><button class="agent-invite" data-open-agent>Поговорить с моим ИИ-агентом</button><button class="agent-write" data-open-agent data-agent-mode="text" type="button">Написать</button></div>
           <p class="orb-caption">Расскажет обо мне, проектах и работе с ИИ.</p>
+          </div>
         </div>
       </section>
       <section class="experience section-block" id="experience">
@@ -95,6 +86,19 @@
   <button class="floating-agent" data-open-agent aria-label="Поговорить с ИИ-агентом"><canvas class="live-orb" data-live-orb="floating" width="72" height="72" aria-hidden="true"></canvas><span>Спросить агента</span></button>
   <section class="agent-overlay" id="agent-overlay" aria-label="Разговор с ИИ-агентом" hidden>
     <div class="agent-focus-orb"><canvas class="live-orb" data-live-orb="focus" width="280" height="280" aria-hidden="true"></canvas></div>
+          <section class="agent-workspace" id="agent-panel" aria-labelledby="agent-title" data-mode="text" hidden>
+            <div class="agent-header"><div><strong id="agent-title" tabindex="-1">Разговор</strong><span id="agent-state" class="agent-state" role="status">Обо мне, проектах и вашей задаче</span></div><div class="agent-header-actions"><button class="agent-icon-button close-agent" type="button" aria-label="Завершить разговор">×</button></div></div>
+            <div class="agent-messages" id="agent-messages" aria-live="polite" aria-label="Диалог с агентом"></div>
+            <div class="voice-panel" id="voice-panel" hidden>
+              <div class="agent-voice-state" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6" stroke="currentColor" stroke-width="1.6"/><path class="mic-slash" d="m4 4 16 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+              <p id="voice-status" role="status">Подключаюсь…</p><p id="voice-caption"></p>
+              <div class="agent-voice-actions"><button id="agent-voice-stop" class="button primary" type="button">Выключить микрофон</button><button id="agent-to-text" class="agent-to-text" type="button">Написать</button></div>
+              <button class="agent-interrupt" id="agent-interrupt" type="button" hidden>Перебить</button>
+            </div>
+            <p class="agent-error" id="agent-error" role="status" hidden></p>
+            <div class="agent-suggestions" id="agent-suggestions" aria-label="Темы для разговора"><button data-agent-prompt="Покажи проекты Тимура" type="button">Проекты</button><button data-agent-prompt="Расскажи, чем занимается Тимур" type="button">О Тимуре</button><button data-agent-prompt="Помоги описать мою задачу для Тимура" type="button">Моя задача</button></div>
+            <div class="agent-composer"><form id="agent-form"><label class="sr-only" for="agent-input">Ваш вопрос агенту</label><input id="agent-input" placeholder="Спросите что-нибудь…" maxlength="1500" autocomplete="off" enterkeyhint="send"><button id="agent-voice-toggle" class="agent-voice-toggle" type="button" aria-label="Поговорить голосом" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6" stroke="currentColor" stroke-width="1.6"/></svg></button><button id="agent-send" class="agent-send" aria-label="Отправить вопрос" type="submit"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></form></div>
+          </section>
   </section>
   <section class="agent-dock" id="agent-dock" data-mic="off" aria-label="Текущий разговор с ИИ-агентом" hidden>
     <button id="agent-resume" class="agent-resume" type="button"><canvas class="live-orb" data-live-orb="dock" width="96" height="96" aria-hidden="true"></canvas><span class="agent-dock-copy"><span>Мой ИИ-агент</span><span id="agent-dock-state" class="agent-dock-state" role="status">Микрофон выключен</span></span><span id="agent-dock-label" class="agent-dock-label">Развернуть</span></button>

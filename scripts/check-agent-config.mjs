@@ -6,7 +6,8 @@ const source=(await readFile(root+'/server/worker.mjs','utf8')).replace('// ASSE
 const worker=(await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))).default;
 let payload;
 globalThis.fetch=async(url,opts)=>{assert.equal(url,'https://api.openai.com/v1/realtime/calls');payload=JSON.parse(opts.body.get('session'));return new Response('v=0\r\nmock-answer',{headers:{'Content-Type':'application/sdp'}});};
-const env={OPENAI_API_KEY:'mock-key',DB:{prepare(){return{bind(){return this;},async first(){return{count:1};},async run(){return{};}};}}};
+// Chat and voice must work even when every previous application quota was used.
+const env={OPENAI_API_KEY:'mock-key',DB:{prepare(){throw new Error('Agent must not access application quotas');}}};
 const req=new Request('http://localhost/api/realtime',{method:'POST',headers:{Origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({sdp:'v=0\r\nmock-offer',context:{device:'mobile'}})});
 const reply=await worker.fetch(req,env,{});
 assert.equal(reply.status,200);
@@ -20,11 +21,24 @@ assert.equal(payload.audio.input.turn_detection.create_response,true);
 assert.match(payload.instructions,/Не начинай приветствие/);
 assert.doesNotMatch(payload.instructions,/карточками внутри разговора/);
 assert.equal(payload.model,'gpt-realtime');
-assert.equal(payload.tools.length,8);
-assert.equal(payload.max_output_tokens,1200);assert.equal(payload.audio.output.voice,'cedar');
+assert.equal(payload.tools.length,9);
+assert.equal(payload.max_output_tokens,'inf');assert.equal(payload.audio.output.voice,'cedar');
+assert.match(payload.instructions,/развёрнутое объяснение/);
+assert.doesNotMatch(payload.instructions,/до 40 слов|15 секунд/);
 assert(payload.tools.some(t=>t.name==='show_career'&&t.parameters.properties.career_id.enum.includes('whistling')));
 assert(payload.tools.some(t=>t.name==='begin_contact_request'));
 assert(payload.tools.some(t=>t.name==='prepare_contact_request'&&t.parameters.properties.name));
+assert(payload.tools.some(t=>t.name==='clear_contact_request'&&t.parameters.properties.field.enum.includes('all')));
 const malformed=await worker.fetch(new Request('http://localhost/api/realtime',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sdp:'bad'})}),env,{});
 assert.equal(malformed.status,400);
-console.log('PASS: Realtime payload, tools, model, SDP delivery and invalid offer rejection (mock upstream, no API key or microphone used).');
+let textPayload;
+globalThis.fetch=async(url,opts)=>{
+  assert.equal(url,'https://api.openai.com/v1/chat/completions');textPayload=JSON.parse(opts.body);
+  return Response.json({choices:[{message:{content:JSON.stringify({reply:'Очищено.',action:'clear_contact_request',target:'all',summary:'',draft_name:'',draft_contact:''})}}]});
+};
+const chat=await worker.fetch(new Request('http://localhost/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({turn:50,messages:[{role:'user',content:'Очисти все данные из формы'}]})}),env,{});
+assert.equal(chat.status,200);assert.equal((await chat.json()).action,'clear_contact_request');
+assert.equal(textPayload.max_tokens,2048);
+assert.doesNotMatch(textPayload.messages[0].content,/Диалог уже достаточно длинный/);
+assert(textPayload.response_format.json_schema.schema.properties.action.enum.includes('clear_contact_request'));
+console.log('PASS: Realtime configuration, detailed replies, draft clearing, no chat/voice quotas or turn handoff, SDP delivery and invalid offer rejection (mock upstream).');

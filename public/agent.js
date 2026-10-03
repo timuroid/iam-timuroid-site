@@ -5,7 +5,7 @@ import {requestHaptic,mountNativeHapticToggle} from '/haptics.js';
 const $=s=>document.querySelector(s);
 const panel=$('#agent-panel'),dock=$('#agent-dock'),hero=$('.hero-art'),overlay=$('#agent-overlay');
 const micInputs=new Map();
-let mode='voice',expandedAtY=0,inlineSeen=false,orbFlight=null,disconnectTimer=null,lastToolResult=null;
+let mode='voice',expandedAtY=0,inlineSeen=false,restoreOnHero=false,scrollFrame=0,disconnectTimer=null,lastToolResult=null;
 const diagnostics={responses:0,incomplete:0,disconnections:0,recoveries:0};
 const messages=$('#agent-messages'),input=$('#agent-input');
 const history=[];
@@ -49,7 +49,7 @@ function updateControls(){
 }
 function setState(state,label){
   setOrbState(state);$('#agent-state').textContent=label;$('#agent-dock-state').textContent=label;
-  const micState=connecting?'connecting':voiceActive?(assistantBusy()||disconnectTimer?'paused':'listening'):'off';
+  const micState=connecting?'connecting':voiceActive?(assistantBusy()||disconnectTimer?'paused':'listening'):state==='error'?'error':'off';
   panel.dataset.mic=micState;dock.dataset.mic=micState;
   $('#voice-status').textContent=disconnectTimer?'Восстанавливаю связь…':connecting?'Подключаюсь…':!voiceActive?'Микрофон выключен':state==='speaking'?'Отвечаю…':state==='thinking'?'Думаю…':'Слушаю вас';
   updateControls();
@@ -64,7 +64,7 @@ function syncVoice(){
     else if(outputPlaying||outputExpected)setState('speaking','Отвечаю · микрофон на паузе');
     else if(awaitingReply||responseInFlight)setState('thinking','Думаю · микрофон на паузе');
     else setState('listening',inputSpeaking?'Слушаю вас…':'Слушаю · микрофон включён');
-  }else setState(pending?'thinking':$('#agent-error').hidden?'idle':'error',pending?'Думаю…':mode==='voice'?'Микрофон выключен':'Можно написать вопрос');
+  }else setState(pending?'thinking':$('#agent-error').hidden?'idle':'error',pending?'Думаю…':!$('#agent-error').hidden?'Не подключён · можно повторить':mode==='voice'?'Микрофон выключен':'Можно написать вопрос');
 }
 function suggestionsPaused(){
   const root=$('#agent-suggestions');
@@ -88,46 +88,28 @@ function updateViewport(){
   if(document.activeElement!==input)viewportBaseline=Math.max(viewportBaseline,height);
   const typing=innerWidth<=650&&['inline','overlay'].includes(presentation)&&document.activeElement===input&&height<viewportBaseline-120;
   panel.classList.toggle('is-typing',typing);
-  panel.style.setProperty('--agent-viewport-height',`${height}px`);
-  panel.style.setProperty('--agent-viewport-top',`${window.visualViewport?.offsetTop||0}px`);
+  overlay.style.setProperty('--agent-viewport-height',`${height}px`);
+  overlay.style.setProperty('--agent-viewport-top',`${window.visualViewport?.offsetTop||0}px`);
+  if(presentation==='inline')positionInlinePanel();
   refreshOrbs();
 }
-function activeCanvas(){return $(presentation==='dock'?'[data-live-orb=dock]':presentation==='overlay'?'[data-live-orb=focus]':'[data-live-orb=hero]');}
-function transferOrb(change){
-  orbFlight?.finish();orbFlight=null;
-  const source=activeCanvas(),rect=source?.getBoundingClientRect();let flight;
-  if(rect?.width&&rect.bottom>0&&rect.top<innerHeight&&!matchMedia('(prefers-reduced-motion:reduce)').matches){
-    try{
-      flight=document.createElement('canvas');flight.width=source.width;flight.height=source.height;flight.getContext('2d').drawImage(source,0,0);
-      flight.setAttribute('aria-hidden','true');flight.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:60;pointer-events:none;transform-origin:0 0;`;document.body.append(flight);
-    }catch{flight?.remove();flight=null;}
-  }
-  change();refreshOrbs();
-  if(!flight)return;
-  if(source===activeCanvas()){flight.remove();return;}
-  const destination=activeCanvas();destination.classList.add('orb-in-transit');
-  const owner={done:false,motion:null,frame:null,finish(){
-    if(owner.done)return;owner.done=true;
-    if(owner.frame!==null)cancelAnimationFrame(owner.frame);
-    owner.motion?.cancel();flight.remove();destination.classList.remove('orb-in-transit');
-    if(orbFlight===owner)orbFlight=null;refreshOrbs();
-  }};
-  orbFlight=owner;
-  owner.frame=requestAnimationFrame(()=>{
-    owner.frame=null;if(owner.done)return;
-    const next=destination.getBoundingClientRect();
-    owner.motion=flight.animate([{transform:'translate(0,0) scale(1)'},{transform:`translate(${next.left-rect.left}px,${next.top-rect.top}px) scale(${next.width/rect.width},${next.height/rect.height})`}],{duration:620,easing:'cubic-bezier(.22,.72,.15,1)',fill:'forwards'});
-    owner.motion.finished.then(owner.finish,owner.finish);
-  });
+function positionInlinePanel(){
+  const bounds=$('#agent-home-space').getBoundingClientRect();
+  overlay.style.setProperty('--agent-home-left',`${bounds.left+window.scrollX}px`);
+  overlay.style.setProperty('--agent-home-top',`${bounds.top+window.scrollY}px`);
+  overlay.style.setProperty('--agent-home-width',`${bounds.width}px`);
 }
 function showExpanded(local=false){
-  transferOrb(()=>{
-    presentation=local?'overlay':'inline';expandedAtY=window.scrollY;const bounds=$('.hero-orb-button').getBoundingClientRect();inlineSeen=!local&&bounds.bottom>0&&bounds.top<innerHeight;
-    if(local)overlay.append(panel);else hero.insertBefore(panel,$('.agent-entry-actions'));
-    panel.hidden=false;dock.hidden=true;overlay.hidden=!local;
-    document.body.classList.add('agent-open','agent-engaged');document.body.classList.remove('agent-collapsed');hero.classList.toggle('is-agent-active',!local);
-    updateViewport();startSuggestionRotation();
-  });
+  // All states share one permanent host. Only composited surfaces change;
+  // neither the hero footprint nor the live canvas dimensions are animated.
+  local=local||mode==='text';
+  hero.classList.toggle('is-orb-returning',presentation==='dock'&&!local);
+  presentation=local?'overlay':'inline';expandedAtY=window.scrollY;restoreOnHero=false;
+  const bounds=hero.getBoundingClientRect();inlineSeen=!local&&bounds.bottom>0&&bounds.top<innerHeight;
+  overlay.dataset.presentation=presentation;
+  panel.hidden=false;dock.hidden=true;overlay.hidden=false;
+  document.body.classList.add('agent-open','agent-engaged');document.body.classList.remove('agent-collapsed');hero.classList.toggle('is-agent-active',!local);
+  updateViewport();startSuggestionRotation();
   messages.scrollTop=messages.scrollHeight;
 }
 export function isOpen(){return sessionActive;}
@@ -138,13 +120,12 @@ export function open({mode:requested='voice',local=false,activate=true}={}){
   $('#agent-title').focus({preventScroll:true});
   if(mode==='voice'&&activate)startVoice();
 }
-export function collapse(){
-  if(!sessionActive||presentation==='dock')return;
+export function collapse({restoreOnHero:restore=false}={}){
+  if(!sessionActive)return;
+  if(presentation==='dock'){if(!restore)restoreOnHero=false;return;}
   const moveFocus=panel.contains(document.activeElement);input.blur();
-  transferOrb(()=>{
-    presentation='dock';panel.hidden=true;overlay.hidden=true;dock.hidden=false;hero.classList.remove('is-agent-active');inlineSeen=false;
-    document.body.classList.remove('agent-open');document.body.classList.add('agent-collapsed','agent-engaged');clearInterval(suggestionTimer);updateViewport();
-  });
+  presentation='dock';restoreOnHero=restore;panel.hidden=true;overlay.hidden=true;dock.hidden=false;hero.classList.remove('is-agent-active','is-orb-returning');inlineSeen=false;
+  document.body.classList.remove('agent-open');document.body.classList.add('agent-collapsed','agent-engaged');clearInterval(suggestionTimer);updateViewport();
   if(moveFocus)$('#agent-resume').focus({preventScroll:true});
 }
 export const minimize=collapse;
@@ -154,8 +135,8 @@ function resetConversation(){
   history.length=0;textTurns=0;messages.replaceChildren();input.value='';$('#voice-caption').textContent='';error('');panel.classList.remove('has-conversation');
 }
 function close(){
-  orbFlight?.finish();orbFlight=null;resetConversation();sessionActive=false;presentation='closed';panel.hidden=true;dock.hidden=true;overlay.hidden=true;
-  hero.insertBefore(panel,$('.agent-entry-actions'));hero.classList.remove('is-agent-active');document.body.classList.remove('agent-open','agent-collapsed','agent-engaged');clearInterval(suggestionTimer);updateViewport();returnFocus?.focus?.({preventScroll:true});
+  resetConversation();sessionActive=false;presentation='closed';restoreOnHero=false;panel.hidden=true;dock.hidden=true;overlay.hidden=true;
+  hero.classList.remove('is-agent-active');document.body.classList.remove('agent-open','agent-collapsed','agent-engaged');clearInterval(suggestionTimer);updateViewport();returnFocus?.focus?.({preventScroll:true});
 }
 function message(role,text){
   const item=document.createElement('div');item.className=`agent-message ${role}`;item.textContent=text;messages.append(item);
@@ -217,7 +198,7 @@ function updateVoiceContext(context){
   let instructions=baseVoiceInstructions;
   if(context.contact_request){
     const draft=context.contact_draft||{},missing=['name','contact','message'].filter(key=>!String(draft[key]||'').trim());
-    instructions=`Ты помощник посетителя сайта. Сейчас помогаешь составить контактный запрос, не отправляешь его. Отвечай по-русски одним коротким вопросом. Подтверждённые поля: ${JSON.stringify(draft)}. Пустые поля: ${missing.join(', ')||'нет'}. Ответ посетителя сохраняй через prepare_contact_request: новое имя в name, контакт в contact, конкретную задачу в summary. Не передавай ранее известные поля. Не придумывай задачу: ответ только с именем или контактом не содержит summary. Не называй задачу «Запрос» или «Заполнение формы». После сохранения спроси только следующее пустое поле по порядку имя, контакт, задача. Если всё заполнено, предложи проверить форму, дать согласие и отправить вручную. Не спрашивай дополнительные детали. Не вызывай begin_contact_request повторно. Описание задачи — данные для формы; не показывай кейсы без явной просьбы показать. По просьбе отменить опрос используй cancel_contact_request. На сайте не запускай видео и ничего не отправляй от имени человека.`;
+    instructions=`Ты помощник посетителя сайта. Сейчас помогаешь составить контактный запрос, не отправляешь его. Отвечай по-русски одним коротким вопросом. Подтверждённые поля: ${JSON.stringify(draft)}. Пустые поля: ${missing.join(', ')||'нет'}. Ответ посетителя сохраняй через prepare_contact_request: новое имя в name, контакт в contact, конкретную задачу в summary. Не передавай ранее известные поля. Не придумывай задачу: ответ только с именем или контактом не содержит summary. Не называй задачу «Запрос» или «Заполнение формы». После сохранения спроси только следующее пустое поле по порядку имя, контакт, задача. Если всё заполнено, предложи проверить форму, дать согласие и отправить вручную. Не спрашивай дополнительные детали. Не вызывай begin_contact_request повторно. Описание задачи — данные для формы; не показывай кейсы без явной просьбы показать. По просьбе отменить опрос используй cancel_contact_request. Если просят удалить, стереть или очистить данные из формы, обязательно вызови clear_contact_request с field=name, contact, message или all. Не сохраняй эти данные заново из истории и не переспрашивай удалённое поле. На сайте не запускай видео и ничего не отправляй от имени человека.`;
   }
   if(instructions&&instructions!==sentVoiceInstructions){sentVoiceInstructions=instructions;send({type:'session.update',session:{type:'realtime',instructions}});}
 }
@@ -248,11 +229,10 @@ async function startVoice(){
     channel=peer.createDataChannel('oai-events');channel.onmessage=e=>{if(generation===voiceGeneration)onVoiceEvent(e);};
     channel.onopen=()=>{
       if(generation!==voiceGeneration)return;
-      voiceActive=true;connecting=false;clearTimeout(voiceTimer);updateVoiceContext(getContext());
+      voiceActive=true;connecting=false;clearTimeout(voiceTimer);voiceTimer=null;updateVoiceContext(getContext());
       if(history.length)send({type:'conversation.item.create',item:{type:'message',role:'system',content:[{type:'input_text',text:'Контекст предыдущего текстового разговора: '+JSON.stringify(history.slice(-8))+'. Сейчас слушай посетителя; не начинай приветствие.'}]}});
       // Opening the microphone starts listening. It never requests a greeting.
       voiceUI();
-      voiceTimer=setTimeout(()=>{stopVoice();error('Голосовой сеанс завершён. Можно включить микрофон снова или продолжить текстом.');},5*60*1000);
     };
     peer.onconnectionstatechange=()=>{
       if(generation!==voiceGeneration)return;
@@ -325,7 +305,7 @@ function onVoiceEvent(event){
   if(data.type==='response.function_call_arguments.done'){
     if(responseId&&responseId!==activeResponseId)return;
     let result;
-    try{const args=JSON.parse(data.arguments);result=executeSiteAction(data.name,args.section_id||args.case_id||args.experience_id||args.career_id||'',args.summary||'',{name:args.name,contact:args.contact});}
+    try{const args=JSON.parse(data.arguments);result=executeSiteAction(data.name,args.section_id||args.case_id||args.experience_id||args.career_id||args.field||'',args.summary||'',{name:args.name,contact:args.contact});}
     catch{result={ok:false,error:'Не удалось открыть информацию. Выберите раздел в меню.'};}
     send({type:'conversation.item.create',item:{type:'function_call_output',call_id:data.call_id,output:JSON.stringify(result)}});
     lastToolResult=result;continuationPending=true;toolFailed=toolFailed||!result.ok;
@@ -340,7 +320,7 @@ function onVoiceEvent(event){
     if(continuationPending){
       continuationPending=false;const failed=toolFailed;toolFailed=false;awaitingReply=true;
       const prompt=lastToolResult?.contact_missing?.length?{name:'Как вас зовут?',contact:'Как с вами связаться?',message:'Что хотите обсудить?'}[lastToolResult.contact_missing[0]]:'Черновик заполнен. Проверьте форму, отметьте согласие и нажмите «Отправить сообщение».';
-      const next=lastToolResult?.contact_request?`Произнеси только эту фразу дословно: ${prompt} Не вызывай инструменты и ничего не добавляй.`:'Подтверди действие одним коротким предложением. Дай посетителю спокойно читать.';
+      const next=lastToolResult?.draftCleared?'Подтверди, что указанные поля формы очищены. Не заполняй их из истории и не начинай новый контактный опрос. Не утверждай, что удалены ранее отправленные заявки.':lastToolResult?.contact_request?`Произнеси только эту фразу дословно: ${prompt} Не вызывай инструменты и ничего не добавляй.`:'Подтверди действие одним коротким предложением. Дай посетителю спокойно читать.';
       send({type:'response.create',response:{instructions:failed?'Коротко сообщи, что действие не получилось.':next}});
     }
     syncVoice();
@@ -364,11 +344,12 @@ function stopVoice(){
   if(audio){audio.pause();audio.srcObject=null;audio.remove();audio=null;}
   voiceUI();
 }
-function toggleVoice(){mode='voice';if(voiceActive||connecting)stopVoice();else startVoice();voiceUI();}
+function setVoiceEnabled(enabled){mode='voice';if(enabled){if(!voiceActive&&!connecting)startVoice();}else if(voiceActive||connecting)stopVoice();voiceUI();}
+function toggleVoice(){setVoiceEnabled(!voiceActive&&!connecting);}
 $('#agent-form').addEventListener('submit',e=>{e.preventDefault();sendMessage(input.value);});
 for(const id of ['agent-voice-toggle','agent-dock-voice','agent-voice-stop']){
   const native=mountNativeHapticToggle($('#'+id));
-  if(native){micInputs.set(id,native);native.addEventListener('change',toggleVoice);}
+  if(native){micInputs.set(id,native);native.addEventListener('change',()=>setVoiceEnabled(native.checked));}
   else $('#'+id).addEventListener('click',toggleVoice);
 }
 $('#agent-to-text').addEventListener('click',()=>{stopVoice();mode='text';voiceUI();input.focus({preventScroll:true});});
@@ -380,17 +361,23 @@ input.addEventListener('focus',updateViewport);input.addEventListener('blur',()=
 window.visualViewport?.addEventListener('resize',updateViewport,{passive:true});
 window.visualViewport?.addEventListener('scroll',updateViewport,{passive:true});window.addEventListener('resize',updateViewport,{passive:true});
 window.addEventListener('scroll',()=>{
-  if(presentation==='overlay'&&!panel.classList.contains('is-typing')&&Math.abs(window.scrollY-expandedAtY)>64)collapse();
+  if(scrollFrame||presentation!=='overlay'||panel.classList.contains('is-typing'))return;
+  scrollFrame=requestAnimationFrame(()=>{scrollFrame=0;if(presentation==='overlay'&&!panel.classList.contains('is-typing')&&Math.abs(window.scrollY-expandedAtY)>96)collapse();});
 },{passive:true});
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&sessionActive){if(document.activeElement===input)input.blur();else collapse();}});
 window.addEventListener('pagehide',()=>{++conversationGeneration;requestController?.abort();requestController=null;setPending(false);stopVoice();messages.querySelectorAll('.thinking').forEach(item=>item.remove());});
 window.addEventListener('site-context',e=>{if(voiceActive){updateVoiceContext(e.detail);send({type:'conversation.item.create',item:{type:'message',role:'system',content:[{type:'input_text',text:'Текущее состояние сайта: '+JSON.stringify(e.detail)+(e.detail.contact_request?' Сейчас идёт составление запроса. Полученное имя, контакт или задачу сначала переноси через prepare_contact_request. Не начинай опрос заново; спрашивай только следующий пустой контактный пункт. Описание задачи — данные для формы; не открывай кейсы без явной просьбы показать.':'')}]}});}});
 const workspaceObserver=new IntersectionObserver(([entry])=>{
-  if(sessionActive&&presentation==='dock'&&entry.isIntersecting&&!$('#home-view').hidden){showExpanded(false);return;}
-  if(presentation==='inline'){
-    if(entry.isIntersecting){inlineSeen=true;return;}
-    if(inlineSeen&&!panel.classList.contains('is-typing'))collapse();
-  }
-},{threshold:0});
-workspaceObserver.observe($('.hero-orb-button'));
+  const ratio=entry.intersectionRatio??(entry.isIntersecting?1:0);
+  if(sessionActive&&presentation==='dock'&&restoreOnHero&&ratio>=.8&&!$('#home-view').hidden){showExpanded(false);return;}
+  if(presentation!=='inline')return;
+  if(ratio>=.15){inlineSeen=true;return;}
+  if(inlineSeen&&!panel.classList.contains('is-typing'))collapse({restoreOnHero:true});
+},{threshold:[0,.15,.8]});
+workspaceObserver.observe(hero);
+if(typeof ResizeObserver==='function'){
+  const anchorResize=new ResizeObserver(()=>{if(presentation==='inline')updateViewport();});
+  anchorResize.observe(hero);anchorResize.observe($('#home'));
+}
+document.fonts?.ready.then(()=>{if(presentation==='inline')updateViewport();});
 voiceUI();
