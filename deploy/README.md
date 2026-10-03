@@ -21,21 +21,19 @@
 Образец службы — `timuroid.service`. Файл `compose.yml`, Dockerfile и nginx
 конфигурация остаются альтернативными шаблонами; на текущем VPS они не используются.
 
-Текущий выпуск — `20261003-neural-admin-8138d20`, исходный коммит
-`8138d20de0452d349f836d31adfb37d33145b921`. Для возврата сохранён
-`/opt/timuroid/releases/20261003-agent-stable-cdfc993`. Проверенные backup:
-`/var/lib/timuroid/backups/timuroid-before-neural-admin-8138d20.sqlite` и
-`/var/lib/timuroid/backups/timuroid-before-neural-admin-8138d20.env`, root 600,
-SQLite quick_check=ok. Миграция применена, прежние записи сохранены.
-Активны timuroid, Caddy и соседний сервис.
-Проверены HTTPS 200, девять точных хешей JS/CSS/HTML, страницы кейсов,
-видео Range 206. Админка требует вход; проверены фактические знания/промпты,
-Secure/HttpOnly/SameSite cookie, CSRF и отзыв сессии после выхода.
-Production API дал развёрнутое объяснение без самовольного перехода;
-пробные заявки на домене не создавались. Настройки Cedar/gpt-realtime сохранены.
+Текущий выпуск — `20261003-orb-mobile-beeb0b7`, исходный коммит
+`beeb0b7bb2fd7645fc0468d207fad057c96a4a2c`. Для возврата сохранён
+`/opt/timuroid/releases/20261003-neural-admin-8138d20`. Проверенный backup:
+`/var/lib/timuroid/backups/timuroid-before-orb-mobile-beeb0b7.sqlite`, root 600,
+SQLite quick_check=ok. Прежние записи сохранены; окружение, настройки моделей
+и вход в админку не менялись. Активны timuroid, Caddy и соседний сервис.
+Проверены HTTPS 200, девять точных хешей JS/CSS/HTML, кейсы и видео Range 206.
+Проверены приватные маршруты, реальный вход, cookie/CSRF/выход, знания и промпты.
+Production агент дал объяснение на 1005 символов без навигации; пробные заявки
+не создавались. На VPS прошли 44 mock сценария и десять проверок админки.
 Архив исходников без секретов/баз, SHA256:
-`88fe573e76e80873bfead4af846199f1acd0ca5b4e00937d6cc35a211fa831cf`.
-Хеш пароля добавлен отдельно в окружение; исходные настройки сохранены.
+`f8cbe5ceea95425123ee707ad8b8c22203994086c91258daccbe5bd494ff849d`.
+Предыдущие backup окружения/базы и выпуски сохранены.
 
 ## Обновление
 
