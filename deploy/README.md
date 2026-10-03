@@ -21,14 +21,16 @@
 Образец службы — `timuroid.service`. Файл `compose.yml`, Dockerfile и nginx
 конфигурация остаются альтернативными шаблонами; на текущем VPS они не используются.
 
-Текущий выпуск — `20261003-voice-first-441728c`, исходный коммит
-`441728cc558353a29e9b3e774a6ea91f49858bb6`. Для возврата сохранён
-`/opt/timuroid/releases/20261003-agent-inline-89cba06`. Проверенный backup перед обновлением:
-`/var/lib/timuroid/backups/timuroid-before-voice-first-441728c.sqlite`, root 600.
-Проверены активные службы, HTTPS 200/HTTP 308, новые HTML/JS/CSS, страницы кейсов,
-видео Range 206 и текстовый API: show_career/whistling и prepare_contact_request.
-Архив выпуска проверен без секретов/баз; SHA256:
-`881c92d254b8847601fbf0ae70cc0d196932fddadaac8bc6e0d1c9d6ac68e8cf`.
+Текущий выпуск — `20261003-agent-stable-cdfc993`, исходный коммит
+`cdfc993f31c273c2a3c6d7089c4d2d61a68fbca1`. Для возврата сохранён
+`/opt/timuroid/releases/20261003-voice-first-441728c`. Проверенный backup:
+`/var/lib/timuroid/backups/timuroid-before-agent-stable-cdfc993.sqlite`, root 600,
+SQLite quick_check=ok. Активны timuroid, Caddy и соседний сервис.
+Проверены HTTPS 200/HTTP 308, точные хеши JS/CSS/обоих шрифтов, страницы кейсов,
+видео Range 206. API домена очистил черновик и дал развёрнутое объяснение без
+самовольного перехода; вопросы после 50 реплик не вызывают принудительный handoff.
+Сервер настроен на Cedar/gpt-realtime. Архив без секретов/баз, SHA256:
+`b7f15bc043073cd18f0d8098acdd7350b547e3b95967e24f6b7e7b6e01fd1123`.
 
 ## Обновление
 
