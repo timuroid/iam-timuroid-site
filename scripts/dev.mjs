@@ -3,6 +3,7 @@ import {readFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {createInterface} from 'node:readline/promises';
+import {createConversationArchive} from '../server/conversations.mjs';
 import {serveMedia} from '../server/media.mjs';
 import {createAdminHandler} from '../server/admin.mjs';
 import {getAgentSpecification} from '../dist/server/index.js';
@@ -24,6 +25,7 @@ if(process.argv.includes('--secret-stdin')){
   console.log('Ready for hidden preview configuration on stdin.');
   for await(const line of lines){Object.assign(secrets,JSON.parse(line));lines.close();if(process.stdin.isTTY)process.stdin.setRawMode(false);break;}
 }
+const archive=createConversationArchive(localDb);
 const admin=createAdminHandler({sqlite:localDb,getSpecification:()=>getAgentSpecification(secrets),passwordHash:process.env.ADMIN_PASSWORD_HASH,login:process.env.ADMIN_LOGIN||'timuroid'});
 const server=http.createServer(async(req,res)=>{
   try{
@@ -36,7 +38,8 @@ const server=http.createServer(async(req,res)=>{
     const bytes=[];for await(const chunk of req)bytes.push(chunk);
     const worker=(await import('../dist/server/index.js?'+Date.now())).default;
     const request=new Request('http://'+req.headers.host+req.url,{method:req.method,headers:req.headers,...(!['GET','HEAD'].includes(req.method)?{body:Buffer.concat(bytes)}:{})});
-    const response=await admin(request,{ip:req.socket.remoteAddress})||await worker.fetch(request,{DB:binding,...secrets},{waitUntil(){}});res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));
+    const archivedResponse=await archive.handle(request);const capture=archivedResponse?null:await archive.prepare(request);
+    let response=archivedResponse||capture?.response||await admin(request,{ip:req.socket.remoteAddress})||await worker.fetch(request,{DB:binding,...secrets,CONVERSATION:capture},{waitUntil(){}});if(capture?.decorate)response=capture.decorate(response);res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));
   }catch(e){res.writeHead(500,{'Content-Type':'text/plain'});res.end('Preview error: '+e.message);}
 });
 const port=Number(process.env.PORT||4173),host=process.env.HOST||'127.0.0.1';

@@ -1,3 +1,4 @@
+import {beginConversation,getConversationId,recordConversation,endConversation} from '/conversation-log.js';
 import {getContext,executeSiteAction,recordInterviewMessage} from '/app.js';
 import {setOrbState,setOrbLevel,setOrbAudioReader,refreshOrbs,feedOrbText,clearOrbText} from '/orb.js';
 import {requestHaptic,mountNativeHapticToggle} from '/haptics.js';
@@ -119,7 +120,7 @@ function showExpanded(local=false){
 }
 export function isOpen(){return sessionActive;}
 export function open({mode:requested='voice',local=false,activate=true}={}){
-  if(!sessionActive){resetConversation();sessionActive=true;returnFocus=document.activeElement;updateSuggestions(suggestionSet,{force:true});}
+  if(!sessionActive){resetConversation();beginConversation(requested==='text'?'text':'voice',getContext());sessionActive=true;returnFocus=document.activeElement;updateSuggestions(suggestionSet,{force:true});}
   if(requested==='text'&&(voiceActive||connecting))stopVoice();
   mode=requested==='text'?'text':'voice';voiceUI();showExpanded(local);
   $('#agent-title').focus({preventScroll:true});
@@ -136,19 +137,20 @@ export function collapse({restoreOnHero:restore=false}={}){
 export const minimize=collapse;
 export function getAgentDiagnostics(){return{...diagnostics,presentation,mode,voiceActive,connecting,micEnabled:mic?.getAudioTracks().some(track=>track.enabled)||false};}
 function resetConversation(){
-  ++conversationGeneration;requestController?.abort();requestController=null;pending=false;stopVoice();
+  flushVoiceArchive();endConversation();++conversationGeneration;requestController?.abort();requestController=null;pending=false;stopVoice();
   history.length=0;textTurns=0;messages.replaceChildren();input.value='';$('#voice-caption').textContent='';error('');panel.classList.remove('has-conversation');
 }
 function close(){
   resetConversation();sessionActive=false;presentation='closed';restoreOnHero=false;panel.hidden=true;dock.hidden=true;overlay.hidden=true;
   hero.classList.remove('is-agent-active');document.body.classList.remove('agent-open','agent-collapsed','agent-engaged');clearInterval(suggestionTimer);updateViewport();returnFocus?.focus?.({preventScroll:true});
 }
-function message(role,text){
+function message(role,text,eventId){
+  if(mode==='voice'&&['user','assistant'].includes(role))finishVoiceArchive(role,eventId||'voice:'+role+':'+conversationGeneration+':'+history.length,text);
   if(['user','assistant'].includes(role))recordInterviewMessage(role,text);
   const item=document.createElement('div');item.className=`agent-message ${role}`;item.textContent=text;messages.append(item);
   messages.scrollTop=messages.scrollHeight;panel.classList.add('has-conversation');return item;
 }
-function error(text){$('#agent-error').textContent=text;$('#agent-error').hidden=!text;syncVoice();}
+function error(text){if(text)recordConversation('error',text,{channel:mode==='voice'?'voice':'text'});$('#agent-error').textContent=text;$('#agent-error').hidden=!text;syncVoice();}
 function setPending(value){pending=value;syncVoice();}
 export async function sendMessage(text){
   text=String(text??'').trim();if(!sessionActive||!text||pending||connecting)return;
@@ -162,10 +164,12 @@ export async function sendMessage(text){
   }
   feedOrbText(text,{role:'user',id:'text-'+conversationGeneration+'-'+history.length,complete:true});
   error('');input.value='';message('user',text);history.push({role:'user',content:text});
+  const turnId=crypto.randomUUID();recordConversation('user',text,{event_id:turnId+':user',channel:'text'});
   const thinking=message('thinking','Думаю…');setPending(true);
   const generation=conversationGeneration,controller=new AbortController();requestController=controller;
   try{
-    const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history.slice(-12),context:getContext(),turn:textTurns}),signal:controller.signal});
+    const sessionId=await getConversationId();if(generation!==conversationGeneration)return;
+    const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history.slice(-12),context:getContext(),turn:textTurns,session_id:sessionId,turn_id:turnId}),signal:controller.signal});
     const result=await response.json();if(generation!==conversationGeneration)return;
     if(!response.ok)throw new Error(result.error||'Агент пока не смог ответить.');
     if(result.action&&result.action!=='none')executeSiteAction(result.action,result.target,result.summary,{name:result.draft_name,contact:result.draft_contact,...result.interview});
@@ -279,9 +283,11 @@ async function startVoice(){
     const offer=await peer.createOffer();if(generation!==voiceGeneration)return;
     await peer.setLocalDescription(offer);if(generation!==voiceGeneration)return;
     const controller=new AbortController();voiceController=controller;
-    const response=await fetch('/api/realtime',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sdp:offer.sdp,context:getContext()}),signal:controller.signal});
+    const sessionId=await getConversationId();if(generation!==voiceGeneration)return;
+    const response=await fetch('/api/realtime',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sdp:offer.sdp,context:getContext(),session_id:sessionId}),signal:controller.signal});
     if(generation!==voiceGeneration)return;
     if(!response.ok){const body=await response.json();throw new Error(body.error||'Не удалось подключить голос.');}
+    voiceArchiveModel=response.headers?.get('x-agent-model')||voiceArchiveModel;
     const answer=await response.text();if(generation!==voiceGeneration)return;
     await peer.setRemoteDescription({type:'answer',sdp:answer});
   }catch(e){
@@ -290,16 +296,32 @@ async function startVoice(){
     error(denied?'Разрешите микрофон в настройках браузера или напишите вопрос.':e.message||'Голос сейчас недоступен. Попробуйте текстом.');
   }
 }
+const voiceArchiveFragments=new Map();let voiceArchiveTimer=null,voiceArchiveModel='gpt-realtime';
+function flushVoiceArchive(){
+  clearTimeout(voiceArchiveTimer);voiceArchiveTimer=null;
+  for(const [id,entry]of voiceArchiveFragments)recordConversation(entry.role,entry.content,{event_id:id,channel:'voice',model:voiceArchiveModel,complete:false});
+  voiceArchiveFragments.clear();
+}
+function archiveVoiceDelta(role,id,delta){
+  const entry=voiceArchiveFragments.get(id)||{role,content:''};entry.content+=String(delta||'');voiceArchiveFragments.set(id,entry);
+  if(!voiceArchiveTimer)voiceArchiveTimer=setTimeout(()=>{voiceArchiveTimer=null;for(const [id,item]of voiceArchiveFragments)recordConversation(item.role,item.content,{event_id:id,channel:'voice',model:voiceArchiveModel,complete:false});},2000);
+}
+function finishVoiceArchive(role,id,text){
+  voiceArchiveFragments.delete(id);recordConversation(role,text,{event_id:id,channel:'voice',model:voiceArchiveModel});
+}
 function hasAudio(response){return response?.output?.some(item=>item.content?.some(part=>['audio','output_audio'].includes(part.type)));}
 function onVoiceEvent(event){
   let data;try{data=JSON.parse(event.data);}catch{return;}
   if(['session.created','session.updated'].includes(data.type)&&!baseVoiceInstructions&&data.session?.instructions){baseVoiceInstructions=data.session.instructions;updateVoiceContext(getContext());}
+  if(data.session?.model)voiceArchiveModel=data.session.model;
   const responseId=data.response_id||data.response?.id;
   if(['response.audio_transcript.delta','response.output_audio_transcript.delta','response.text.delta','response.output_text.delta'].includes(data.type)){
     if(responseId&&responseId!==activeResponseId)return;
+    archiveVoiceDelta('assistant','voice:assistant:'+(responseId||'reply')+':'+(data.item_id||'audio'),data.delta);
     feedOrbText(data.delta,{role:'assistant',id:(responseId||'reply')+':'+(data.item_id||'audio')});return;
   }
   if(data.type==='conversation.item.input_audio_transcription.delta'){
+    archiveVoiceDelta('user','voice:user:'+(data.item_id||'input'),data.delta);
     feedOrbText(data.delta,{role:'user',id:data.item_id||'input'});return;
   }
   // Audio packets carry no UI state. Painting/controls use the analyser and
@@ -330,16 +352,17 @@ function onVoiceEvent(event){
     if(finishedId===playbackResponseId){playbackResponseId=null;outputPlaying=false;}
     outputExpected=audioResponses.size>0&&!outputPlaying;syncVoice();requestQueuedVoiceResponse();
   }
-  if(data.type==='conversation.item.input_audio_transcription.completed'&&data.transcript){feedOrbText(data.transcript,{role:'user',id:data.item_id||'input',complete:true});message('user',data.transcript);history.push({role:'user',content:data.transcript});}
+  if(data.type==='conversation.item.input_audio_transcription.completed'&&data.transcript){feedOrbText(data.transcript,{role:'user',id:data.item_id||'input',complete:true});message('user',data.transcript,'voice:user:'+(data.item_id||'input'));history.push({role:'user',content:data.transcript});}
   if(['response.audio_transcript.done','response.output_audio_transcript.done'].includes(data.type)&&data.transcript){
     feedOrbText(data.transcript,{role:'assistant',id:(responseId||'reply')+':'+(data.item_id||'audio'),complete:true});
-    message('assistant',data.transcript);history.push({role:'assistant',content:data.transcript});
+    message('assistant',data.transcript,'voice:assistant:'+responseId+':'+(data.item_id||'audio'));history.push({role:'assistant',content:data.transcript});
   }
   if(data.type==='response.function_call_arguments.done'){
     if(responseId&&responseId!==activeResponseId)return;
     let result;
     try{const args=JSON.parse(data.arguments);result=executeSiteAction(data.name,args.section_id||args.case_id||args.experience_id||args.career_id||args.field||'',args.summary||'',{name:args.name,contact:args.contact,process:args.process,goal:args.goal,constraints:args.constraints});}
     catch{result={ok:false,error:'Не удалось открыть информацию. Выберите раздел в меню.'};}
+    recordConversation('tool',JSON.stringify({name:data.name,arguments:data.arguments,result}),{event_id:'tool:'+data.call_id,channel:'voice',model:voiceArchiveModel});
     send({type:'conversation.item.create',item:{type:'function_call_output',call_id:data.call_id,output:JSON.stringify(result)}});
     lastToolResult=result;continuationPending=true;toolFailed=toolFailed||!result.ok;
   }
@@ -400,7 +423,7 @@ window.addEventListener('scroll',()=>{
 document.addEventListener('keydown',e=>{if(e.key==='Tab')document.body.classList.add('is-keyboard-navigation');});
 document.addEventListener('pointerdown',()=>document.body.classList.remove('is-keyboard-navigation'),{passive:true});
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&sessionActive){if(document.activeElement===input)input.blur();else collapse();}});
-window.addEventListener('pagehide',()=>{++conversationGeneration;requestController?.abort();requestController=null;setPending(false);stopVoice();messages.querySelectorAll('.thinking').forEach(item=>item.remove());});
+window.addEventListener('pagehide',()=>{flushVoiceArchive();endConversation();++conversationGeneration;requestController?.abort();requestController=null;setPending(false);stopVoice();messages.querySelectorAll('.thinking').forEach(item=>item.remove());});
 window.addEventListener('site-context',e=>{if(voiceActive){updateVoiceContext(e.detail);send({type:'conversation.item.create',item:{type:'message',role:'system',content:[{type:'input_text',text:'Текущее состояние сайта: '+JSON.stringify(e.detail)+(e.detail.contact_request?' Сейчас идёт составление запроса. Полученное имя, контакт или задачу сначала переноси через prepare_contact_request. Не начинай опрос заново; спрашивай только следующий пустой контактный пункт. Описание задачи — данные для формы; не открывай кейсы без явной просьбы показать.':'')}]}});}});
 const workspaceObserver=new IntersectionObserver(([entry])=>{
   const ratio=entry.intersectionRatio??(entry.isIntersecting?1:0);

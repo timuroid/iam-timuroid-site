@@ -206,3 +206,5 @@ body.is-keyboard-navigation .agent-resume:focus-visible,body.is-keyboard-navigat
   #agent-overlay.is-chat-sheet .agent-suggestions{margin-top:auto}
   #agent-overlay.is-chat-sheet .agent-composer{padding-top:0}
 }
+
+.conversation-notice{font-size:11px;color:var(--muted);text-align:center;margin:0 0 6px}.conversation-notice a{text-decoration:underline}.agent-dock~.conversation-notice{display:none}

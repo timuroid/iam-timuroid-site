@@ -1,5 +1,6 @@
 const $=selector=>document.querySelector(selector);
 let csrf='',spec=null,items=[],next=null,selected=null,detailVersion=0;
+let conversations=[],conversationNext=null,conversationSelected=null,conversationVersion=0,conversationFilters={q:'',visitor:''};
 function node(tag,text,className){const element=document.createElement(tag);if(text!==undefined)element.textContent=text;if(className)element.className=className;return element;}
 const pretty=value=>JSON.stringify(value,null,2);
 function parse(value,fallback){try{return JSON.parse(value);}catch{return fallback;}}
@@ -9,10 +10,10 @@ async function api(path,options={}){
   const result=await response.json();if(!response.ok){if(response.status===401)showLogin();throw new Error(result.error||'Не удалось получить данные.');}return result;
 }
 function error(text){$('#admin-error').textContent=text;$('#admin-error').hidden=!text;}
-function showLogin(){csrf='';spec=null;items=[];selected=null;next=null;detailVersion++;$('#admin-view').hidden=true;$('#login-view').hidden=false;$('#lead-list').replaceChildren();$('#lead-detail').replaceChildren();$('#knowledge-content').replaceChildren();$('#prompt-content').replaceChildren();}
+function showLogin(){csrf='';spec=null;items=[];selected=null;next=null;detailVersion++;$('#admin-view').hidden=true;$('#login-view').hidden=false;$('#lead-list').replaceChildren();$('#lead-detail').replaceChildren();$('#knowledge-content').replaceChildren();$('#prompt-content').replaceChildren();$('#conversation-list').replaceChildren();$('#conversation-detail').replaceChildren();conversations=[];conversationSelected=null;conversationVersion++;}
 async function enter(){
   const session=await api('session');csrf=session.csrf;$('#login-view').hidden=true;$('#admin-view').hidden=false;$('#login-form [name=password]').value='';
-  try{const results=await Promise.all([api('spec'),api('leads')]);spec=results[0];items=results[1].items;next=results[1].next;$('#inbox-count').textContent=results[1].total;renderLeads();renderKnowledge();renderPrompts();}catch(e){error(e.message);}
+  try{const results=await Promise.all([api('spec'),api('leads')]);spec=results[0];items=results[1].items;next=results[1].next;$('#inbox-count').textContent=results[1].total;renderLeads();renderKnowledge();renderPrompts();await loadConversations(true);}catch(e){error(e.message);}
 }
 $('#login-form').addEventListener('submit',async event=>{
   event.preventDefault();const button=event.currentTarget.querySelector('button');button.disabled=true;$('#login-error').textContent='';
@@ -73,10 +74,44 @@ function renderKnowledge(){
 function renderPrompts(){
   const root=$('#prompt-content');root.replaceChildren();const models=node('dl',undefined,'model-settings');
   for(const [label,value]of [['Текстовая модель',spec.models.text],['Голосовая модель',spec.models.realtime],['Голос',spec.models.voice],['Распознавание',spec.models.transcription],['Предел голосового ответа',spec.models.voice_tokens],['Версия инструкций',spec.prompts.version]]){const field=node('div');field.append(node('dt',label),node('dd',String(value)));models.append(field);}root.append(models);
-  root.append(node('p','Обычный разговор и аудиозапись не сохраняются в базе сайта. После ручного согласия и отправки сохраняются бриф и текст интервью. Черновик до отправки остаётся во вкладке. Ответ агента не обрывается новой речью; следующий вопрос ждёт завершения воспроизведения.','storage-note'));
+  root.append(node('p','Все текстовые диалоги и расшифровки голосовых разговоров сохраняются в закрытом разделе «Все диалоги». Аудиозаписи не сохраняются. Посетители группируются по анонимному идентификатору браузера; это не подтверждённая личность. Заявки отправляются отдельно после ручного согласия. Ответ агента не обрывается новой речью; следующий вопрос ждёт завершения воспроизведения.','storage-note'));
   for(const [label,value]of [['Основной системный промпт',spec.prompts.general],['Промпт интервью',spec.prompts.interview],['Формат текстового ответа',spec.prompts.text_output]]){const block=node('section',undefined,'prompt-block');block.append(node('h2',label),node('pre',value));root.append(block);}
   root.append(rawDetails('Порядок и вопросы интервью',spec.prompts.questions),rawDetails('Инструменты управления сайтом',spec.tools),rawDetails('Настройки определения речи',spec.models.turn_detection));
   root.append(rawDetails('Полный системный промпт: знакомство',spec.assembled.general),rawDetails('Полный системный промпт: текстовый режим',spec.assembled.text),rawDetails('Полный системный промпт: текстовое интервью',spec.assembled.interview),rawDetails('Инструкции голосового интервью',spec.assembled.voice_interview));
   root.append(node('p',spec.assembled.context_note+' API-ключ и пароль панели здесь не отображаются.','source-note'));
 }
 enter().catch(e=>{if(e.message!=='Войдите в панель.')$('#login-error').textContent=e.message;});
+
+const channelName=value=>({text:'Чат',voice:'Голос',mixed:'Чат и голос'}[value]||value);
+function renderConversations(){
+  const root=$('#conversation-list');root.replaceChildren();$('#more-conversations').hidden=conversationNext===null;
+  if(!conversations.length){root.append(node('p','Диалогов пока нет. Прежние несохранённые разговоры восстановить нельзя.','empty-state'));return;}
+  for(const item of conversations){
+    const button=node('button',undefined,'lead-row');button.type='button';button.setAttribute('aria-current',String(item.id===conversationSelected));
+    button.append(node('strong','Посетитель '+item.visitor_label),node('span',date(item.started_at)+' · '+channelName(item.channel)+' · '+item.message_count+' реплик'),node('p',item.preview||'Сессия открыта, сообщений пока нет.'));
+    button.addEventListener('click',()=>showConversation(item.id));root.append(button);
+  }
+}
+async function loadConversations(reset=false){
+  try{const params=new URLSearchParams({...conversationFilters,offset:String(reset?0:conversationNext||0)}),result=await api('conversations?'+params);
+    conversations=reset?result.items:[...conversations,...result.items];conversationNext=result.next;$('#conversation-count').textContent=result.total;renderConversations();
+    if(reset&&conversationSelected)await showConversation(conversationSelected);
+  }catch(e){error(e.message);}
+}
+async function showConversation(id){
+  const version=++conversationVersion;conversationSelected=id;renderConversations();error('');
+  try{const result=await api('conversations/'+id);if(version!==conversationVersion)return;
+    const s=result.session,root=$('#conversation-detail');root.replaceChildren();root.append(node('h2','Посетитель '+s.visitor_label),node('p',date(s.started_at)+' · '+channelName(s.channel),'lead-date'),node('p','Страница: '+s.page_path+' · '+(s.device||'Устройство не указано'),'source-note'),node('p',s.ended_at?'Разговор завершён '+date(s.ended_at):'Последняя активность '+date(s.updated_at),'source-note'));
+    const actions=node('div',undefined,'lead-actions'),download=node('a','Скачать диалог');download.href='/api/admin/conversations/'+id+'/export';actions.append(download);
+    const visitor=node('button','Все сессии посетителя');visitor.type='button';visitor.onclick=()=>{conversationFilters.visitor=s.visitor_label;$('#conversation-search [name=visitor]').value=s.visitor_label;void loadConversations(true)};actions.append(visitor);root.append(actions);
+    const transcript=node('div',undefined,'transcript');root.append(transcript);
+    function add(messages){for(const item of messages){const block=node('div',undefined,'transcript-item');block.append(node('small',({user:'Посетитель',assistant:'Агент',tool:'Действие',error:'Ошибка'}[item.role]||item.role)+' · '+date(item.created_at)+' · '+channelName(item.channel)+(item.model?' · '+item.model:'')+(item.is_final===0?' · незавершённая расшифровка':'')),node('p',item.content));transcript.append(block);}}
+    add(result.messages);if(!result.messages.length)transcript.append(node('p','Сообщений пока нет.','empty-state'));
+    let cursor=result.next;const more=node('button','Ещё сообщения');more.type='button';more.hidden=cursor===null;root.append(more);
+    more.onclick=async()=>{more.disabled=true;try{const page=await api('conversations/'+id+'?after='+cursor);if(version!==conversationVersion)return;add(page.messages);cursor=page.next;more.hidden=cursor===null;}catch(e){error(e.message)}finally{more.disabled=false}};
+  }catch(e){error(e.message);}
+}
+$('#refresh-conversations').addEventListener('click',()=>loadConversations(true));
+$('#more-conversations').addEventListener('click',()=>loadConversations());
+$('#conversation-search').addEventListener('submit',event=>{event.preventDefault();conversationFilters=Object.fromEntries(new FormData(event.currentTarget));conversationSelected=null;void loadConversations(true);});
+$('#clear-conversation-filter').addEventListener('click',()=>{conversationFilters={q:'',visitor:''};$('#conversation-search').reset();conversationSelected=null;void loadConversations(true);});

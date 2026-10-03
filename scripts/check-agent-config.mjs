@@ -32,14 +32,15 @@ assert(payload.tools.some(t=>t.name==='prepare_contact_request'&&t.parameters.pr
 assert(payload.tools.some(t=>t.name==='clear_contact_request'&&t.parameters.properties.field.enum.includes('all')));
 const malformed=await worker.fetch(new Request('http://localhost/api/realtime',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sdp:'bad'})}),env,{});
 assert.equal(malformed.status,400);
-let textPayload;
+let textPayload;const archived=[];env.CONVERSATION={append:entry=>archived.push(entry)};
 globalThis.fetch=async(url,opts)=>{
   assert.equal(url,'https://api.openai.com/v1/chat/completions');textPayload=JSON.parse(opts.body);
   return Response.json({choices:[{message:{content:JSON.stringify({reply:'Очищено.',action:'clear_contact_request',target:'all',summary:'',draft_name:'',draft_contact:''})}}]});
 };
 const chat=await worker.fetch(new Request('http://localhost/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({turn:50,messages:[{role:'user',content:'Очисти все данные из формы'}]})}),env,{});
 assert.equal(chat.status,200);assert.equal((await chat.json()).action,'clear_contact_request');
-assert.equal(textPayload.max_tokens,2048);
+assert.equal(archived.filter(x=>x.role==='user').length,1);assert.equal(archived.filter(x=>x.role==='assistant').length,1);assert.equal(archived.find(x=>x.role==='assistant').model,'gpt-6-luna');
+assert.equal(textPayload.max_completion_tokens,2048);assert.equal(textPayload.model,'gpt-6-luna');assert.equal(textPayload.reasoning_effort,'none');
 assert.doesNotMatch(textPayload.messages[0].content,/Диалог уже достаточно длинный/);
 assert(textPayload.response_format.json_schema.schema.properties.action.enum.includes('clear_contact_request'));
 console.log('PASS: Realtime configuration, detailed replies, draft clearing, no chat/voice quotas or turn handoff, SDP delivery and invalid offer rejection (mock upstream).');

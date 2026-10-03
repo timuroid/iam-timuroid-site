@@ -41,6 +41,29 @@ export function createAdminHandler({sqlite,getSpecification,passwordHash,login='
       sqlite.prepare('DELETE FROM admin_sessions WHERE token_hash=?').run(hash(cookie));return json({ok:true},200,{'Set-Cookie':cookieHeader('',0)});
     }
     if(url.pathname==='/api/admin/spec'&&request.method==='GET')return json(getSpecification());
+    if(url.pathname==='/api/admin/conversations'&&request.method==='GET'){
+      const offset=Math.max(0,Math.min(100000,Number(url.searchParams.get('offset'))||0));
+      const visitor=String(url.searchParams.get('visitor')||'');
+      const query=String(url.searchParams.get('q')||'').slice(0,200);
+      const where="WHERE (?='' OR s.visitor_label=?) AND (?='' OR EXISTS(SELECT 1 FROM conversation_messages m WHERE m.session_id=s.id AND instr(lower(m.content),lower(?))>0))";
+      const values=[visitor,visitor,query,query];
+      const items=sqlite.prepare(`SELECT s.id,s.visitor_label,s.started_at,s.updated_at,s.ended_at,s.channel,s.page_path,s.device,
+        (SELECT COUNT(*) FROM conversation_messages m WHERE m.session_id=s.id) AS message_count,
+        (SELECT content FROM conversation_messages m WHERE m.session_id=s.id AND m.role='user' ORDER BY id LIMIT 1) AS preview,
+        (SELECT COUNT(*) FROM visitor_sessions v WHERE v.visitor_hash=s.visitor_hash) AS visitor_session_count
+        FROM visitor_sessions s ${where} ORDER BY s.updated_at DESC,s.id DESC LIMIT 50 OFFSET ?`).all(...values,Math.floor(offset));
+      const total=sqlite.prepare(`SELECT COUNT(*) AS count FROM visitor_sessions s ${where}`).get(...values).count;
+      return json({items,total,next:offset+items.length<total?offset+items.length:null});
+    }
+    const conversationMatch=url.pathname.match(/^\/api\/admin\/conversations\/([a-f0-9-]{36})(?:\/(export))?$/i);
+    if(conversationMatch&&request.method==='GET'){
+      const session=sqlite.prepare('SELECT id,visitor_label,started_at,updated_at,ended_at,channel,page_path,device,user_agent FROM visitor_sessions WHERE id=?').get(conversationMatch[1]);
+      if(!session)return json({error:'Диалог не найден.'},404);
+      const after=Math.max(0,Number(url.searchParams.get('after'))||0),exporting=conversationMatch[2]==='export';
+      const messages=sqlite.prepare('SELECT id,event_id,role,content,channel,model,source,is_final,created_at FROM conversation_messages WHERE session_id=? AND id>? ORDER BY id LIMIT ?').all(session.id,exporting?0:after,exporting?1000000:201);
+      const next=!exporting&&messages.length>200?messages[199].id:null;
+      return json({session,messages:exporting?messages:messages.slice(0,200),next},200,exporting?{'Content-Disposition':`attachment; filename="conversation-${session.id}.json"`}:{});
+    }
     if(url.pathname==='/api/admin/leads'&&request.method==='GET'){
       const offset=Math.max(0,Math.min(100000,Number(url.searchParams.get('offset'))||0));
       const rows=sqlite.prepare('SELECT id,name,contact,message,source,created_at,review_status,interview_json FROM leads ORDER BY created_at DESC LIMIT 50 OFFSET ?').all(Math.floor(offset));

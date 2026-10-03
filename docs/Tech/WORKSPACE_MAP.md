@@ -108,3 +108,6 @@ Native Canvas-сравнение этой правки на Mac: 0.898 → 0.535
 Жидкая поверхность теперь обтекает выпуклую оболочку проекции графа,
 без минимального круглого радиуса. 48 угловых образцов сглажены; вращение
 меняет контур даже в покое.
+
+| `server/conversations.mjs`, `public/conversation-log.js` | Анонимные сессии, server chat archive, browser voice outbox |
+| `drizzle/0002_visitor_conversations.sql` | Сессии и история всех диалогов отдельно от заявок |

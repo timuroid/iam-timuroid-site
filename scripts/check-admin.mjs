@@ -4,13 +4,13 @@ import {DatabaseSync} from 'node:sqlite';
 import {scryptSync} from 'node:crypto';
 import {createAdminHandler} from '../server/admin.mjs';
 const sqlite=new DatabaseSync(':memory:');
-for(const file of ['0000_huge_hammerhead.sql','0001_interview_admin.sql'])sqlite.exec(await readFile(new URL('../drizzle/'+file,import.meta.url),'utf8'));
+for(const file of ['0000_huge_hammerhead.sql','0001_interview_admin.sql','0002_visitor_conversations.sql'])sqlite.exec(await readFile(new URL('../drizzle/'+file,import.meta.url),'utf8'));
 const password='synthetic-admin-password',salt='0123456789abcdef0123456789abcdef';
 const admin=createAdminHandler({sqlite,getSpecification:()=>({prompts:{general:'Actual prompt'},models:{voice:'cedar'}}),passwordHash:'scrypt:'+salt+':'+scryptSync(password,salt,64).toString('hex')});
 const request=(path,method='GET',body,headers={})=>new Request('https://example.test/api/admin/'+path,{method,headers:{Origin:'https://example.test','Content-Type':'application/json',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
 const checks=[];
 async function check(name,fn){await fn();checks.push(name);}
-await check('private endpoints reject anonymous requests',async()=>{for(const path of ['spec','leads','session'])assert.equal((await admin(request(path),{secure:true})).status,401);});
+await check('private endpoints reject anonymous requests',async()=>{for(const path of ['spec','leads','session','conversations','conversations/00000000-0000-4000-8000-000000000001'])assert.equal((await admin(request(path),{secure:true})).status,401);});
 await check('cross-site login rejected',async()=>assert.equal((await admin(request('login','POST',{login:'timuroid',password},{Origin:'https://evil.test'}),{secure:true})).status,403));
 await check('wrong password rejected',async()=>assert.equal((await admin(request('login','POST',{login:'timuroid',password:'wrong'}),{secure:true})).status,401));
 const login=await admin(request('login','POST',{login:'timuroid',password}),{secure:true});assert.equal(login.status,200);const session=await login.json(),cookie=login.headers.get('set-cookie').split(';')[0];
