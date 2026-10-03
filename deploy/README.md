@@ -21,16 +21,21 @@
 Образец службы — `timuroid.service`. Файл `compose.yml`, Dockerfile и nginx
 конфигурация остаются альтернативными шаблонами; на текущем VPS они не используются.
 
-Текущий выпуск — `20261003-agent-stable-cdfc993`, исходный коммит
-`cdfc993f31c273c2a3c6d7089c4d2d61a68fbca1`. Для возврата сохранён
-`/opt/timuroid/releases/20261003-voice-first-441728c`. Проверенный backup:
-`/var/lib/timuroid/backups/timuroid-before-agent-stable-cdfc993.sqlite`, root 600,
-SQLite quick_check=ok. Активны timuroid, Caddy и соседний сервис.
-Проверены HTTPS 200/HTTP 308, точные хеши JS/CSS/обоих шрифтов, страницы кейсов,
-видео Range 206. API домена очистил черновик и дал развёрнутое объяснение без
-самовольного перехода; вопросы после 50 реплик не вызывают принудительный handoff.
-Сервер настроен на Cedar/gpt-realtime. Архив без секретов/баз, SHA256:
-`b7f15bc043073cd18f0d8098acdd7350b547e3b95967e24f6b7e7b6e01fd1123`.
+Текущий выпуск — `20261003-neural-admin-8138d20`, исходный коммит
+`8138d20de0452d349f836d31adfb37d33145b921`. Для возврата сохранён
+`/opt/timuroid/releases/20261003-agent-stable-cdfc993`. Проверенные backup:
+`/var/lib/timuroid/backups/timuroid-before-neural-admin-8138d20.sqlite` и
+`/var/lib/timuroid/backups/timuroid-before-neural-admin-8138d20.env`, root 600,
+SQLite quick_check=ok. Миграция применена, прежние записи сохранены.
+Активны timuroid, Caddy и соседний сервис.
+Проверены HTTPS 200, девять точных хешей JS/CSS/HTML, страницы кейсов,
+видео Range 206. Админка требует вход; проверены фактические знания/промпты,
+Secure/HttpOnly/SameSite cookie, CSRF и отзыв сессии после выхода.
+Production API дал развёрнутое объяснение без самовольного перехода;
+пробные заявки на домене не создавались. Настройки Cedar/gpt-realtime сохранены.
+Архив исходников без секретов/баз, SHA256:
+`88fe573e76e80873bfead4af846199f1acd0ca5b4e00937d6cc35a211fa831cf`.
+Хеш пароля добавлен отдельно в окружение; исходные настройки сохранены.
 
 ## Обновление
 
