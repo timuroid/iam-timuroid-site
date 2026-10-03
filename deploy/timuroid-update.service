@@ -1,0 +1,10 @@
+[Unit]
+Description=Validate and deploy TIMUROID updates from main
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/timuroid-update-from-main
+TimeoutStartSec=15min
+UMask=0077

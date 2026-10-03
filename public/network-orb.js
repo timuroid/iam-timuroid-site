@@ -38,9 +38,9 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
   let workspace=workspaces.get(network);
   if(!workspace){
     const points=network.nodes.map(n=>({x:0,y:0,z:0,scale:1,id:n.id}));
-    workspace={points,ordered:[...points],bins:Array.from({length:10},()=>[]),outline:new Float32Array(48),smooth:new Float32Array(48)};workspaces.set(network,workspace);
+    workspace={points,ordered:[...points],bins:Array.from({length:10},()=>[]),outline:new Float32Array(48),smooth:new Float32Array(48),hull:[],sorted:[...points]};workspaces.set(network,workspace);
   }
-  const {points,ordered,bins,outline,smooth}=workspace;
+  const {points,ordered,bins,outline,smooth,hull,sorted}=workspace;
   const unit=size*.33,c=size/2,ay=time*.12+pointer[0]*.12,ax=-.22+pointer[1]*.12;
   const cy=Math.cos(ay),sy=Math.sin(ay),cx=Math.cos(ax),sx=Math.sin(ax);
   const activity=reduced?0:state==='speaking'?.36+energy*.65:state==='thinking'?.28:state==='listening'?.09+energy*.65:0;
@@ -58,13 +58,33 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
     const perspective=3.8/(3.8-z);
     const point=points[n.id];point.x=c+x*unit*perspective*expansion;point.y=c+y*unit*perspective*expansion;point.z=z;point.scale=perspective;
   }
-  // Derive the liquid boundary from the projected graph, rather than an
-  // unrelated speech sine wave. A short angular filter softens isolated spikes.
-  outline.fill(size*.38*expansion);
-  for(const p of points){
-    const dx=p.x-c,dy=p.y-c,angle=(Math.atan2(dy,dx)+tau)%tau;
-    const bin=Math.floor(angle/tau*48)%48;
-    outline[bin]=Math.max(outline[bin],Math.min(size*.435,Math.hypot(dx,dy)+size*.014));
+  // Wrap the actual outer vertices. No circular minimum: the silhouette
+  // changes with the graph's rotation, even when there is no speech.
+  sorted.sort((a,b)=>a.x-b.x||a.y-b.y);hull.length=0;
+  const turn=(a,b,p)=>(b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x);
+  for(const p of sorted){
+    while(hull.length>1&&turn(hull[hull.length-2],hull[hull.length-1],p)<=0)hull.pop();
+    hull.push(p);
+  }
+  const lower=hull.length;
+  for(let i=sorted.length-2;i>=0;i--){
+    const p=sorted[i];
+    while(hull.length>lower&&turn(hull[hull.length-2],hull[hull.length-1],p)<=0)hull.pop();
+    hull.push(p);
+  }
+  hull.pop();
+  for(let i=0;i<48;i++){
+    const angle=i*tau/48,dx=Math.cos(angle),dy=Math.sin(angle);
+    let radius=0;
+    for(let j=0;j<hull.length;j++){
+      const a=hull[j],b=hull[(j+1)%hull.length];
+      const ax=a.x-c,ay=a.y-c,ex=b.x-a.x,ey=b.y-a.y;
+      const denominator=dx*ey-dy*ex;
+      if(Math.abs(denominator)<1e-8)continue;
+      const t=(ax*ey-ay*ex)/denominator,u=(ax*dy-ay*dx)/denominator;
+      if(t>0&&u>=0&&u<=1)radius=Math.max(radius,t);
+    }
+    outline[i]=radius+size*.016;
   }
   for(let i=0;i<48;i++){
     smooth[i]=(outline[(i+46)%48]+2*outline[(i+47)%48]+3*outline[i]+2*outline[(i+1)%48]+outline[(i+2)%48])/9;

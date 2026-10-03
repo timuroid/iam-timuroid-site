@@ -1,0 +1,11 @@
+[Unit]
+Description=Check TIMUROID main for updates every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=60s
+AccuracySec=5s
+Unit=timuroid-update.service
+
+[Install]
+WantedBy=timers.target
