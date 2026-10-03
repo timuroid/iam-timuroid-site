@@ -88,27 +88,30 @@ function renderConversations(){
   if(!conversations.length){root.append(node('p','Диалогов пока нет. Прежние несохранённые разговоры восстановить нельзя.','empty-state'));return;}
   for(const item of conversations){
     const button=node('button',undefined,'lead-row');button.type='button';button.setAttribute('aria-current',String(item.id===conversationSelected));
-    button.append(node('strong','Посетитель '+item.visitor_label),node('span',date(item.started_at)+' · '+channelName(item.channel)+' · '+item.message_count+' реплик'),node('p',item.preview||'Сессия открыта, сообщений пока нет.'));
-    button.addEventListener('click',()=>showConversation(item.id));root.append(button);
+    const count=item.message_count+' '+(item.message_count%10===1&&item.message_count%100!==11?'реплика':item.message_count%10>=2&&item.message_count%10<=4&&(item.message_count%100<10||item.message_count%100>=20)?'реплики':'реплик');
+    button.append(node('strong','Посетитель '+item.visitor_label),node('span',date(item.started_at)+' · '+channelName(item.channel)+' · '+count),node('p',item.preview||'Сессия открыта, сообщений пока нет.'));
+    button.addEventListener('click',()=>showConversation(item.id,{focus:true}));root.append(button);
   }
 }
 async function loadConversations(reset=false){
   try{const params=new URLSearchParams({...conversationFilters,offset:String(reset?0:conversationNext||0)}),result=await api('conversations?'+params);
     conversations=reset?result.items:[...conversations,...result.items];conversationNext=result.next;$('#conversation-count').textContent=result.total;renderConversations();
     if(reset&&conversationSelected)await showConversation(conversationSelected);
+    else if(reset&&!conversationSelected&&conversations.length)await showConversation(conversations[0].id);
   }catch(e){error(e.message);}
 }
-async function showConversation(id){
+async function showConversation(id,{focus=false}={}){
   const version=++conversationVersion;conversationSelected=id;renderConversations();error('');
   try{const result=await api('conversations/'+id);if(version!==conversationVersion)return;
     const s=result.session,root=$('#conversation-detail');root.replaceChildren();root.append(node('h2','Посетитель '+s.visitor_label),node('p',date(s.started_at)+' · '+channelName(s.channel),'lead-date'),node('p','Страница: '+s.page_path+' · '+(s.device||'Устройство не указано'),'source-note'),node('p',s.ended_at?'Разговор завершён '+date(s.ended_at):'Последняя активность '+date(s.updated_at),'source-note'));
-    const actions=node('div',undefined,'lead-actions'),download=node('a','Скачать диалог');download.href='/api/admin/conversations/'+id+'/export';actions.append(download);
+    const actions=node('div',undefined,'lead-actions'),download=node('a','Экспорт JSON');download.href='/api/admin/conversations/'+id+'/export';download.setAttribute('download','');actions.append(download);
     const visitor=node('button','Все сессии посетителя');visitor.type='button';visitor.onclick=()=>{conversationFilters.visitor=s.visitor_label;$('#conversation-search [name=visitor]').value=s.visitor_label;void loadConversations(true)};actions.append(visitor);root.append(actions);
     const transcript=node('div',undefined,'transcript');root.append(transcript);
-    function add(messages){for(const item of messages){const block=node('div',undefined,'transcript-item');block.append(node('small',({user:'Посетитель',assistant:'Агент',tool:'Действие',error:'Ошибка'}[item.role]||item.role)+' · '+date(item.created_at)+' · '+channelName(item.channel)+(item.model?' · '+item.model:'')+(item.is_final===0?' · незавершённая расшифровка':'')),node('p',item.content));transcript.append(block);}}
+    function add(messages){for(const item of messages){const block=node('div',undefined,'transcript-item conversation-message is-'+item.role);block.append(node('small',({user:'Посетитель',assistant:'Агент',tool:'Действие',error:'Ошибка'}[item.role]||item.role)+' · '+date(item.created_at)+(item.is_final===0?' · расшифровывается':'')),node('p',item.content));if(item.model||item.channel==='voice')block.append(node('span',[channelName(item.channel),item.model].filter(Boolean).join(' · '),'message-meta'));transcript.append(block);}}
     add(result.messages);if(!result.messages.length)transcript.append(node('p','Сообщений пока нет.','empty-state'));
     let cursor=result.next;const more=node('button','Ещё сообщения');more.type='button';more.hidden=cursor===null;root.append(more);
     more.onclick=async()=>{more.disabled=true;try{const page=await api('conversations/'+id+'?after='+cursor);if(version!==conversationVersion)return;add(page.messages);cursor=page.next;more.hidden=cursor===null;}catch(e){error(e.message)}finally{more.disabled=false}};
+    if(focus&&matchMedia('(max-width: 900px)').matches)root.scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){error(e.message);}
 }
 $('#refresh-conversations').addEventListener('click',()=>loadConversations(true));
