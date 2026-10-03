@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {DatabaseSync} from 'node:sqlite';
+import {scryptSync} from 'node:crypto';
+import {createAdminHandler} from '../server/admin.mjs';
+const sqlite=new DatabaseSync(':memory:');
+for(const file of ['0000_huge_hammerhead.sql','0001_interview_admin.sql'])sqlite.exec(await readFile(new URL('../drizzle/'+file,import.meta.url),'utf8'));
+const password='synthetic-admin-password',salt='0123456789abcdef0123456789abcdef';
+const admin=createAdminHandler({sqlite,getSpecification:()=>({prompts:{general:'Actual prompt'},models:{voice:'cedar'}}),passwordHash:'scrypt:'+salt+':'+scryptSync(password,salt,64).toString('hex')});
+const request=(path,method='GET',body,headers={})=>new Request('https://example.test/api/admin/'+path,{method,headers:{Origin:'https://example.test','Content-Type':'application/json',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
+const checks=[];
+async function check(name,fn){await fn();checks.push(name);}
+await check('private endpoints reject anonymous requests',async()=>{for(const path of ['spec','leads','session'])assert.equal((await admin(request(path),{secure:true})).status,401);});
+await check('cross-site login rejected',async()=>assert.equal((await admin(request('login','POST',{login:'timuroid',password},{Origin:'https://evil.test'}),{secure:true})).status,403));
+await check('wrong password rejected',async()=>assert.equal((await admin(request('login','POST',{login:'timuroid',password:'wrong'}),{secure:true})).status,401));
+const login=await admin(request('login','POST',{login:'timuroid',password}),{secure:true});assert.equal(login.status,200);const session=await login.json(),cookie=login.headers.get('set-cookie').split(';')[0];
+await check('session uses Secure HttpOnly SameSite cookie; database stores only digest',async()=>{assert.match(login.headers.get('set-cookie'),/HttpOnly; SameSite=Strict/);assert.match(login.headers.get('set-cookie'),/Secure/);assert(sqlite.prepare('SELECT token_hash FROM admin_sessions').get().token_hash!==cookie.split('=')[1]);});
+const headers={Cookie:cookie,'X-CSRF-Token':session.csrf};
+await check('real prompt view available after login',async()=>assert.equal((await (await admin(request('spec','GET',undefined,headers),{secure:true})).json()).prompts.general,'Actual prompt'));
+const id='00000000-0000-4000-8000-000000000001',now=new Date().toISOString();
+sqlite.prepare('INSERT INTO leads(id,request_id,name,contact,message,source,consent_at,created_at,interview_json,conversation_json) VALUES(?,?,?,?,?,?,?,?,?,?)').run(id,id,'Тест','@example','Сравнение документов','synthetic',now,now,JSON.stringify({process:'Вручную',goal:'Сводка',constraints:'Не уточняли'}),JSON.stringify([{role:'user',content:'Пока вручную'}]));
+await check('stored interview and transcript returned to owner',async()=>{const result=await(await admin(request('leads/'+id,'GET',undefined,headers),{secure:true})).json();assert.equal(JSON.parse(result.interview_json).process,'Вручную');assert.equal(JSON.parse(result.conversation_json)[0].content,'Пока вручную');assert.equal((await admin(request('leads/'+id+'/export','GET',undefined,headers),{secure:true})).headers.get('content-disposition'),'attachment; filename="interview-'+id+'.json"');});
+await check('status writes require CSRF and same origin',async()=>{assert.equal((await admin(request('leads/'+id+'/status','POST',{status:'read'},{Cookie:cookie}),{secure:true})).status,403);assert.equal((await admin(request('leads/'+id+'/status','POST',{status:'read'},{...headers,Origin:'https://evil.test'}),{secure:true})).status,403);assert.equal((await admin(request('leads/'+id+'/status','POST',{status:'read'},headers),{secure:true})).status,200);assert.equal(sqlite.prepare('SELECT review_status FROM leads WHERE id=?').get(id).review_status,'read');});
+await check('logout revokes server session',async()=>{assert.equal((await admin(request('logout','POST',{},headers),{secure:true})).status,200);assert.equal((await admin(request('spec','GET',undefined,headers),{secure:true})).status,401);});
+await check('login guesses throttled without exposing password',async()=>{for(let i=0;i<5;i++)assert.equal((await admin(request('login','POST',{login:'timuroid',password:'wrong'}),{secure:true,ip:'other'})).status,401);assert.equal((await admin(request('login','POST',{login:'timuroid',password}),{secure:true,ip:'other'})).status,429);});
+await check('legacy leads survive additive migration',async()=>{assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM leads').get().count,1);assert.equal(sqlite.prepare('PRAGMA quick_check').get().quick_check,'ok');});
+sqlite.close();console.log(JSON.stringify({check:'admin access and interview storage',passed:checks.length,checks}));

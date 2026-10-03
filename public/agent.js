@@ -1,5 +1,5 @@
-import {getContext,executeSiteAction} from '/app.js';
-import {setOrbState,setOrbLevel,setOrbAudioReader,refreshOrbs} from '/orb.js';
+import {getContext,executeSiteAction,recordInterviewMessage} from '/app.js';
+import {setOrbState,setOrbLevel,setOrbAudioReader,refreshOrbs,feedOrbText,clearOrbText} from '/orb.js';
 import {requestHaptic,mountNativeHapticToggle} from '/haptics.js';
 
 const $=s=>document.querySelector(s);
@@ -14,9 +14,11 @@ let sessionActive=false,presentation='closed',pending=false,requestController;
 let conversationGeneration=0,textTurns=0,returnFocus,suggestionSet=0,suggestionTimer;
 let pc,channel,mic,audio,voiceTimer,voiceController,voiceGeneration=0;
 let voiceActive=false,connecting=false,inputSpeaking=false,awaitingReply=false;
-let responseInFlight=false,activeResponseId=null,outputPlaying=false,outputExpected=false,playbackResponseId=null,interruptedTurn=false,clearingOutput=false,clearingResponseId=null;
+let responseInFlight=false,activeResponseId=null,outputPlaying=false,outputExpected=false,playbackResponseId=null;
 let continuationPending=false,toolFailed=false,audioContext=null,micMeter=null,outputMeter=null,baseVoiceInstructions='',sentVoiceInstructions='';
-const meterGraphs=[],cancelledResponses=new Set(),audioResponses=new Set(),finishedAudioResponses=new Set(),cancelAwaitIds=new Set();
+const pendingVoiceTurns=new Set(),seenVoiceTurns=new Set();
+let queuedContinuation=null,voiceContextVersion=0;
+const meterGraphs=[],audioResponses=new Set(),finishedAudioResponses=new Set();
 const suggestionGroups=[
   [['Покажи проекты Тимура','Проекты'],['Как устроен проект со сторис?','Кейс со сторис'],['Как Тимур использует ИИ каждый день?','ИИ в работе']],
   [['Чем Тимур занимается в Цифровой стали?','AI-разработка'],['Расскажи о преподавании Тимура в Бауманке','Преподавание'],['Что Тимур исследует?','Исследования']],
@@ -27,8 +29,7 @@ const suggestionGroups=[
 ];
 
 function voiceBusy(){return voiceActive&&(assistantBusy()||inputSpeaking);}
-function assistantBusy(){return awaitingReply||responseInFlight||outputPlaying||outputExpected||clearingOutput||cancelAwaitIds.size>0;}
-function canInterrupt(){return voiceActive&&!clearingOutput&&!cancelAwaitIds.size&&(responseInFlight&&Boolean(activeResponseId)||outputPlaying||outputExpected);}
+function assistantBusy(){return awaitingReply||responseInFlight||outputPlaying||outputExpected;}
 function updateControls(){
   const blocked=pending||connecting||voiceBusy();
   $('#agent-send').disabled=blocked;input.readOnly=pending;
@@ -43,26 +44,26 @@ function updateControls(){
   }
   const stop=$('#agent-voice-stop'),visual=stop.querySelector('.native-haptic-visual');
   (visual||stop).textContent=label;
-  $('#agent-interrupt').hidden=!canInterrupt();$('#voice-panel').hidden=mode!=='voice';
+  $('#voice-panel').hidden=mode!=='voice';
   $('#agent-title').textContent=mode==='voice'?'Голосовой разговор':'Чат';
   $('#agent-dock-label').textContent=mode==='voice'?'Разговор':'Чат';
 }
 function setState(state,label){
   setOrbState(state);$('#agent-state').textContent=label;$('#agent-dock-state').textContent=label;
-  const micState=connecting?'connecting':voiceActive?(assistantBusy()||disconnectTimer?'paused':'listening'):state==='error'?'error':'off';
+  const micState=connecting?'connecting':voiceActive?(disconnectTimer?'paused':'listening'):state==='error'?'error':'off';
   panel.dataset.mic=micState;dock.dataset.mic=micState;
-  $('#voice-status').textContent=disconnectTimer?'Восстанавливаю связь…':connecting?'Подключаюсь…':!voiceActive?'Микрофон выключен':state==='speaking'?'Отвечаю…':state==='thinking'?'Думаю…':'Слушаю вас';
+  $('#voice-status').textContent=disconnectTimer?'Восстанавливаю связь…':connecting?'Подключаюсь…':!voiceActive?'Микрофон выключен':inputSpeaking?'Слушаю вас':state==='speaking'?'Отвечаю…':state==='thinking'?'Думаю…':'Слушаю вас';
   updateControls();
 }
 function syncVoice(){
-  const listening=voiceActive&&!assistantBusy()&&!disconnectTimer;
+  const listening=voiceActive&&!disconnectTimer;
   mic?.getAudioTracks().forEach(track=>{track.enabled=listening;});
+  $('#voice-caption').textContent=connecting?'':listening?'Можно говорить, пока я заканчиваю ответ.':'';
   if(disconnectTimer)setState('thinking','Восстанавливаю соединение · микрофон на паузе');
   else if(connecting)setState('thinking','Подключаюсь…');
   else if(voiceActive){
-    if(clearingOutput||cancelAwaitIds.size)setState('thinking','Останавливаю ответ · микрофон на паузе');
-    else if(outputPlaying||outputExpected)setState('speaking','Отвечаю · микрофон на паузе');
-    else if(awaitingReply||responseInFlight)setState('thinking','Думаю · микрофон на паузе');
+    if(outputPlaying||outputExpected)setState('speaking',inputSpeaking?'Слушаю вас · ответ продолжается':pendingVoiceTurns.size?'Отвечаю · следующий вопрос принят':'Отвечаю · микрофон включён');
+    else if(awaitingReply||responseInFlight)setState('thinking',inputSpeaking?'Слушаю вас · готовлю ответ':'Думаю · микрофон включён');
     else setState('listening',inputSpeaking?'Слушаю вас…':'Слушаю · микрофон включён');
   }else setState(pending?'thinking':$('#agent-error').hidden?'idle':'error',pending?'Думаю…':!$('#agent-error').hidden?'Не подключён · можно повторить':mode==='voice'?'Микрофон выключен':'Можно написать вопрос');
 }
@@ -139,6 +140,7 @@ function close(){
   hero.classList.remove('is-agent-active');document.body.classList.remove('agent-open','agent-collapsed','agent-engaged');clearInterval(suggestionTimer);updateViewport();returnFocus?.focus?.({preventScroll:true});
 }
 function message(role,text){
+  if(['user','assistant'].includes(role))recordInterviewMessage(role,text);
   const item=document.createElement('div');item.className=`agent-message ${role}`;item.textContent=text;messages.append(item);
   messages.scrollTop=messages.scrollHeight;panel.classList.add('has-conversation');return item;
 }
@@ -149,10 +151,12 @@ export async function sendMessage(text){
   if(text.length>1500){error('Напишите вопрос короче — до 1500 символов.');return;}
   if(voiceActive){
     if(voiceBusy()||channel?.readyState!=='open')return;
-    interruptedTurn=false;activeResponseId=null;error('');input.value='';message('user',text);history.push({role:'user',content:text});
+    feedOrbText(text,{role:'user',id:'text-'+conversationGeneration+'-'+history.length,complete:true});
+    activeResponseId=null;error('');input.value='';message('user',text);history.push({role:'user',content:text});
     send({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text}]}});
     awaitingReply=true;syncVoice();send({type:'response.create'});return;
   }
+  feedOrbText(text,{role:'user',id:'text-'+conversationGeneration+'-'+history.length,complete:true});
   error('');input.value='';message('user',text);history.push({role:'user',content:text});
   const thinking=message('thinking','Думаю…');setPending(true);
   const generation=conversationGeneration,controller=new AbortController();requestController=controller;
@@ -160,8 +164,9 @@ export async function sendMessage(text){
     const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history.slice(-12),context:getContext(),turn:textTurns}),signal:controller.signal});
     const result=await response.json();if(generation!==conversationGeneration)return;
     if(!response.ok)throw new Error(result.error||'Агент пока не смог ответить.');
+    if(result.action&&result.action!=='none')executeSiteAction(result.action,result.target,result.summary,{name:result.draft_name,contact:result.draft_contact,...result.interview});
+    feedOrbText(result.reply,{role:'assistant',id:'text-'+conversationGeneration+'-'+textTurns,complete:true});
     thinking.remove();message('assistant',result.reply);history.push({role:'assistant',content:result.reply});textTurns++;updateSuggestions(suggestionSet+1);
-    if(result.action&&result.action!=='none')executeSiteAction(result.action,result.target,result.summary,{name:result.draft_name,contact:result.draft_contact});
   }catch(e){
     if(generation!==conversationGeneration)return;
     thinking.remove();
@@ -183,7 +188,14 @@ function createAudioContext(){
       meter.analyser.getFloatTimeDomainData(meter.samples);let sum=0;for(const sample of meter.samples)sum+=sample*sample;
       const rms=Math.sqrt(sum/meter.samples.length),now=performance.now(),dt=Math.min(.1,(now-meter.lastRead)/1000);meter.lastRead=now;
       const target=Math.max(0,Math.min(1,(rms-(state==='listening'?.025:.009))*5));
-      meter.level+=(target-meter.level)*(1-Math.exp(-dt/(target>meter.level?.09:.28)));return meter.level;
+      meter.level+=(target-meter.level)*(1-Math.exp(-dt/(target>meter.level?.09:.28)));
+      const stride=meter.samples.length/meter.waveform.length;
+      for(let i=0;i<meter.waveform.length;i++){
+        let peak=0;for(let j=Math.floor(i*stride);j<Math.floor((i+1)*stride);j++)peak=Math.max(peak,Math.abs(meter.samples[j]));
+        const amplitude=Math.max(0,Math.min(1,(peak-.009)*4)),previous=meter.waveform[i];
+        meter.waveform[i]=previous+(amplitude-previous)*(1-Math.exp(-dt/(amplitude>previous?.07:.2)));
+      }
+      meter.reading.level=meter.level;return meter.reading;
     });
   }catch{audioContext=null;}
 }
@@ -191,16 +203,32 @@ function attachMeter(stream){
   if(!audioContext)return null;
   try{
     const source=audioContext.createMediaStreamSource(stream),analyser=audioContext.createAnalyser();analyser.fftSize=512;source.connect(analyser);
-    const meter={source,analyser,samples:new Float32Array(analyser.fftSize),level:0,lastRead:performance.now()};meterGraphs.push(meter);return meter;
+    const waveform=new Float32Array(32);
+    const meter={source,analyser,samples:new Float32Array(analyser.fftSize),waveform,reading:{level:0,waveform},level:0,lastRead:performance.now()};meterGraphs.push(meter);return meter;
   }catch{return null;}
 }
-function updateVoiceContext(context){
-  let instructions=baseVoiceInstructions;
-  if(context.contact_request){
-    const draft=context.contact_draft||{},missing=['name','contact','message'].filter(key=>!String(draft[key]||'').trim());
-    instructions=`Ты помощник посетителя сайта. Сейчас помогаешь составить контактный запрос, не отправляешь его. Отвечай по-русски одним коротким вопросом. Подтверждённые поля: ${JSON.stringify(draft)}. Пустые поля: ${missing.join(', ')||'нет'}. Ответ посетителя сохраняй через prepare_contact_request: новое имя в name, контакт в contact, конкретную задачу в summary. Не передавай ранее известные поля. Не придумывай задачу: ответ только с именем или контактом не содержит summary. Не называй задачу «Запрос» или «Заполнение формы». После сохранения спроси только следующее пустое поле по порядку имя, контакт, задача. Если всё заполнено, предложи проверить форму, дать согласие и отправить вручную. Не спрашивай дополнительные детали. Не вызывай begin_contact_request повторно. Описание задачи — данные для формы; не показывай кейсы без явной просьбы показать. По просьбе отменить опрос используй cancel_contact_request. Если просят удалить, стереть или очистить данные из формы, обязательно вызови clear_contact_request с field=name, contact, message или all. Не сохраняй эти данные заново из истории и не переспрашивай удалённое поле. На сайте не запускай видео и ничего не отправляй от имени человека.`;
+async function updateVoiceContext(context){
+  const version=++voiceContextVersion,generation=voiceGeneration;
+  if(!context.contact_request){
+    if(baseVoiceInstructions&&baseVoiceInstructions!==sentVoiceInstructions){sentVoiceInstructions=baseVoiceInstructions;send({type:'session.update',session:{type:'realtime',instructions:baseVoiceInstructions}});}
+    return;
   }
-  if(instructions&&instructions!==sentVoiceInstructions){sentVoiceInstructions=instructions;send({type:'session.update',session:{type:'realtime',instructions}});}
+  try{
+    const response=await fetch('/api/agent-context',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context}),signal:AbortSignal.timeout(10000)});
+    if(!response.ok)return;
+    const data=await response.json();
+    if(version!==voiceContextVersion||generation!==voiceGeneration||!voiceActive)return;
+    const instructions=[baseVoiceInstructions,data.instructions].filter(Boolean).join('\n');
+    if(instructions!==sentVoiceInstructions){sentVoiceInstructions=instructions;send({type:'session.update',session:{type:'realtime',instructions}});}
+  }catch{/* The previous instructions remain valid during a transient update error. */}
+}
+function requestQueuedVoiceResponse(){
+  if(!voiceActive||disconnectTimer||inputSpeaking||assistantBusy()||channel?.readyState!=='open')return;
+  if(pendingVoiceTurns.size){
+    pendingVoiceTurns.clear();queuedContinuation=null;awaitingReply=true;syncVoice();send({type:'response.create'});
+  }else if(queuedContinuation){
+    const instructions=queuedContinuation;queuedContinuation=null;awaitingReply=true;syncVoice();send({type:'response.create',response:{instructions}});
+  }
 }
 function send(event){if(channel?.readyState==='open')channel.send(JSON.stringify(event));}
 async function startVoice(){
@@ -237,7 +265,7 @@ async function startVoice(){
     peer.onconnectionstatechange=()=>{
       if(generation!==voiceGeneration)return;
       if(peer.connectionState==='connected'){
-        if(disconnectTimer){clearTimeout(disconnectTimer);disconnectTimer=null;diagnostics.recoveries++;syncVoice();}return;
+        if(disconnectTimer){clearTimeout(disconnectTimer);disconnectTimer=null;diagnostics.recoveries++;syncVoice();requestQueuedVoiceResponse();}return;
       }
       if(peer.connectionState==='disconnected'){
         if(!disconnectTimer){diagnostics.disconnections++;disconnectTimer=setTimeout(()=>{if(generation===voiceGeneration){stopVoice();error('Соединение прервалось. Включите микрофон снова или напишите вопрос.');}},8000);syncVoice();}return;
@@ -258,37 +286,37 @@ async function startVoice(){
     error(denied?'Разрешите микрофон в настройках браузера или напишите вопрос.':e.message||'Голос сейчас недоступен. Попробуйте текстом.');
   }
 }
-function interrupt(){
-  if(!canInterrupt())return;
-  interruptedTurn=true;clearingOutput=outputPlaying||outputExpected;
-  clearingResponseId=clearingOutput?(playbackResponseId||[...audioResponses].at(-1)||activeResponseId):null;
-  if(responseInFlight&&activeResponseId)cancelAwaitIds.add(activeResponseId);
-  for(const id of audioResponses)cancelledResponses.add(id);
-  if(activeResponseId)cancelledResponses.add(activeResponseId);
-  if(responseInFlight)send({type:'response.cancel',...(activeResponseId?{response_id:activeResponseId}:{})});
-  send({type:'output_audio_buffer.clear'});send({type:'input_audio_buffer.clear'});
-  continuationPending=false;toolFailed=false;responseInFlight=false;activeResponseId=null;
-  audioResponses.clear();playbackResponseId=null;outputPlaying=false;outputExpected=false;inputSpeaking=false;awaitingReply=false;syncVoice();
-}
 function hasAudio(response){return response?.output?.some(item=>item.content?.some(part=>['audio','output_audio'].includes(part.type)));}
 function onVoiceEvent(event){
   let data;try{data=JSON.parse(event.data);}catch{return;}
   if(['session.created','session.updated'].includes(data.type)&&!baseVoiceInstructions&&data.session?.instructions){baseVoiceInstructions=data.session.instructions;updateVoiceContext(getContext());}
   const responseId=data.response_id||data.response?.id;
-  if(clearingOutput&&data.type==='output_audio_buffer.cleared'&&responseId===clearingResponseId){clearingOutput=false;clearingResponseId=null;syncVoice();}
-  if(data.type==='response.done'&&cancelAwaitIds.delete(responseId))syncVoice();
-  if(responseId&&cancelledResponses.has(responseId))return;
+  if(['response.audio_transcript.delta','response.output_audio_transcript.delta','response.text.delta','response.output_text.delta'].includes(data.type)){
+    if(responseId&&responseId!==activeResponseId)return;
+    feedOrbText(data.delta,{role:'assistant',id:(responseId||'reply')+':'+(data.item_id||'audio')});return;
+  }
+  if(data.type==='conversation.item.input_audio_transcription.delta'){
+    feedOrbText(data.delta,{role:'user',id:data.item_id||'input'});return;
+  }
+  // Audio packets carry no UI state. Painting/controls use the analyser and
+  // lifecycle events rather than hundreds of DOM updates for media chunks.
+  if(['response.audio.delta','response.output_audio.delta'].includes(data.type))return;
   if(data.type==='input_audio_buffer.speech_started'){
-    if(!assistantBusy()){$('#voice-caption').textContent='';interruptedTurn=false;activeResponseId=null;inputSpeaking=true;syncVoice();}return;
+    inputSpeaking=true;syncVoice();return;
   }
   if(data.type==='input_audio_buffer.speech_stopped'){
-    if(!assistantBusy()){inputSpeaking=false;awaitingReply=true;syncVoice();}return;
+    inputSpeaking=false;syncVoice();return;
+  }
+  if(data.type==='input_audio_buffer.committed'){
+    const id=data.item_id||data.event_id;if(!id||seenVoiceTurns.has(id))return;
+    seenVoiceTurns.add(id);if(seenVoiceTurns.size>500)seenVoiceTurns.delete(seenVoiceTurns.values().next().value);
+    pendingVoiceTurns.add(id);requestQueuedVoiceResponse();syncVoice();return;
   }
   if(data.type==='response.created'){
-    if(interruptedTurn){if(responseId)cancelledResponses.add(responseId);send({type:'response.cancel',...(responseId?{response_id:responseId}:{})});send({type:'output_audio_buffer.clear'});return;}
-    activeResponseId=data.response?.id||null;responseInFlight=true;awaitingReply=true;inputSpeaking=false;syncVoice();
+    activeResponseId=data.response?.id||null;responseInFlight=true;awaitingReply=true;syncVoice();
   }
   if(data.type==='output_audio_buffer.started'){
+    if(responseId&&finishedAudioResponses.has(responseId))return;
     playbackResponseId=responseId||activeResponseId;if(playbackResponseId)audioResponses.add(playbackResponseId);
     outputPlaying=true;outputExpected=false;syncVoice();
   }
@@ -296,16 +324,17 @@ function onVoiceEvent(event){
     const finishedId=responseId||playbackResponseId;
     if(finishedId){audioResponses.delete(finishedId);finishedAudioResponses.add(finishedId);}
     if(finishedId===playbackResponseId){playbackResponseId=null;outputPlaying=false;}
-    outputExpected=audioResponses.size>0&&!outputPlaying;syncVoice();
+    outputExpected=audioResponses.size>0&&!outputPlaying;syncVoice();requestQueuedVoiceResponse();
   }
-  if(data.type==='conversation.item.input_audio_transcription.completed'&&data.transcript){message('user',data.transcript);history.push({role:'user',content:data.transcript});}
+  if(data.type==='conversation.item.input_audio_transcription.completed'&&data.transcript){feedOrbText(data.transcript,{role:'user',id:data.item_id||'input',complete:true});message('user',data.transcript);history.push({role:'user',content:data.transcript});}
   if(['response.audio_transcript.done','response.output_audio_transcript.done'].includes(data.type)&&data.transcript){
-    $('#voice-caption').textContent=data.transcript.length>180?data.transcript.slice(0,177)+'…':data.transcript;message('assistant',data.transcript);history.push({role:'assistant',content:data.transcript});
+    feedOrbText(data.transcript,{role:'assistant',id:(responseId||'reply')+':'+(data.item_id||'audio'),complete:true});
+    message('assistant',data.transcript);history.push({role:'assistant',content:data.transcript});
   }
   if(data.type==='response.function_call_arguments.done'){
     if(responseId&&responseId!==activeResponseId)return;
     let result;
-    try{const args=JSON.parse(data.arguments);result=executeSiteAction(data.name,args.section_id||args.case_id||args.experience_id||args.career_id||args.field||'',args.summary||'',{name:args.name,contact:args.contact});}
+    try{const args=JSON.parse(data.arguments);result=executeSiteAction(data.name,args.section_id||args.case_id||args.experience_id||args.career_id||args.field||'',args.summary||'',{name:args.name,contact:args.contact,process:args.process,goal:args.goal,constraints:args.constraints});}
     catch{result={ok:false,error:'Не удалось открыть информацию. Выберите раздел в меню.'};}
     send({type:'conversation.item.create',item:{type:'function_call_output',call_id:data.call_id,output:JSON.stringify(result)}});
     lastToolResult=result;continuationPending=true;toolFailed=toolFailed||!result.ok;
@@ -318,12 +347,12 @@ function onVoiceEvent(event){
     if(responseId&&hasAudio(data.response)&&!finishedAudioResponses.has(responseId))audioResponses.add(responseId);
     outputExpected=audioResponses.size>0&&!outputPlaying;
     if(continuationPending){
-      continuationPending=false;const failed=toolFailed;toolFailed=false;awaitingReply=true;
-      const prompt=lastToolResult?.contact_missing?.length?{name:'Как вас зовут?',contact:'Как с вами связаться?',message:'Что хотите обсудить?'}[lastToolResult.contact_missing[0]]:'Черновик заполнен. Проверьте форму, отметьте согласие и нажмите «Отправить сообщение».';
+      continuationPending=false;const failed=toolFailed;toolFailed=false;
+      const prompt=lastToolResult?.contact_missing?.length?{name:'Как вас зовут?',contact:'Как с вами связаться?',message:'Что хотите обсудить?',process:'Как вы решаете эту задачу сейчас?',goal:'Какого результата хотелось бы добиться?',constraints:'Есть сроки, ограничения или важные условия? Можно пропустить.'}[lastToolResult.contact_missing[0]]:'Черновик заполнен. Проверьте форму, отметьте согласие и нажмите «Отправить сообщение».';
       const next=lastToolResult?.draftCleared?'Подтверди, что указанные поля формы очищены. Не заполняй их из истории и не начинай новый контактный опрос. Не утверждай, что удалены ранее отправленные заявки.':lastToolResult?.contact_request?`Произнеси только эту фразу дословно: ${prompt} Не вызывай инструменты и ничего не добавляй.`:'Подтверди действие одним коротким предложением. Дай посетителю спокойно читать.';
-      send({type:'response.create',response:{instructions:failed?'Коротко сообщи, что действие не получилось.':next}});
+      queuedContinuation=failed?'Коротко сообщи, что действие не получилось.':next;
     }
-    syncVoice();
+    syncVoice();requestQueuedVoiceResponse();
   }
   if(data.type==='error'){
     if(['conversation_already_has_active_response','response_cancel_not_active'].includes(data.error?.code))return;
@@ -332,9 +361,10 @@ function onVoiceEvent(event){
   updateControls();
 }
 function stopVoice(){
-  ++voiceGeneration;clearTimeout(disconnectTimer);disconnectTimer=null;voiceController?.abort();voiceController=null;clearTimeout(voiceTimer);voiceTimer=null;
+  clearOrbText();
+  ++voiceGeneration;++voiceContextVersion;pendingVoiceTurns.clear();seenVoiceTurns.clear();queuedContinuation=null;clearTimeout(disconnectTimer);disconnectTimer=null;voiceController?.abort();voiceController=null;clearTimeout(voiceTimer);voiceTimer=null;
   voiceActive=false;connecting=false;baseVoiceInstructions='';sentVoiceInstructions='';continuationPending=false;toolFailed=false;inputSpeaking=false;awaitingReply=false;
-  responseInFlight=false;activeResponseId=null;outputPlaying=false;outputExpected=false;playbackResponseId=null;interruptedTurn=false;clearingOutput=false;clearingResponseId=null;cancelAwaitIds.clear();cancelledResponses.clear();audioResponses.clear();finishedAudioResponses.clear();
+  responseInFlight=false;activeResponseId=null;outputPlaying=false;outputExpected=false;playbackResponseId=null;audioResponses.clear();finishedAudioResponses.clear();
   setOrbAudioReader(null);setOrbLevel(0);
   for(const meter of meterGraphs.splice(0)){meter.source.disconnect();meter.analyser.disconnect();}micMeter=null;outputMeter=null;
   if(audioContext){audioContext.close().catch(()=>{});audioContext=null;}$('.audio-unlock')?.remove();
@@ -352,8 +382,7 @@ for(const id of ['agent-voice-toggle','agent-dock-voice','agent-voice-stop']){
   if(native){micInputs.set(id,native);native.addEventListener('change',()=>setVoiceEnabled(native.checked));}
   else $('#'+id).addEventListener('click',toggleVoice);
 }
-$('#agent-to-text').addEventListener('click',()=>{stopVoice();mode='text';voiceUI();input.focus({preventScroll:true});});
-$('#agent-interrupt').addEventListener('click',interrupt);
+$('#agent-to-text').addEventListener('click',()=>{stopVoice();mode='text';voiceUI();showExpanded(true);input.focus({preventScroll:true});});
 $('#agent-resume').addEventListener('click',()=>open({mode,local:true,activate:false}));
 $('.close-agent').addEventListener('click',close);
 for(const root of [panel,dock])root.addEventListener('click',e=>{if(e.target.closest('button,input[switch]'))requestHaptic(e);});

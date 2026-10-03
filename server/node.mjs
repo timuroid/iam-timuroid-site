@@ -2,7 +2,8 @@ import http from 'node:http';
 import {readFile,readdir,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
-import worker from '../dist/server/index.js';
+import worker,{getAgentSpecification} from '../dist/server/index.js';
+import {createAdminHandler} from './admin.mjs';
 import {serveMedia} from './media.mjs';
 
 process.umask(0o077);
@@ -19,6 +20,7 @@ for(const name of (await readdir(migrationDirectory)).filter(n=>n.endsWith('.sql
 }
 const DB={prepare(sql){let parameters=[];return{bind(...values){parameters=values;return this;},async first(){return sqlite.prepare(sql).get(...parameters)||null;},async run(){return sqlite.prepare(sql).run(...parameters);}};}};
 const runtime={DB,OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_TEXT_MODEL:process.env.OPENAI_TEXT_MODEL,OPENAI_REALTIME_MODEL:process.env.OPENAI_REALTIME_MODEL,OPENAI_REALTIME_VOICE:process.env.OPENAI_REALTIME_VOICE};
+const admin=createAdminHandler({sqlite,getSpecification:()=>getAgentSpecification(runtime),passwordHash:process.env.ADMIN_PASSWORD_HASH,login:process.env.ADMIN_LOGIN||'timuroid'});
 const server=http.createServer(async(req,res)=>{
   try{
     if(await serveMedia(req,res,new URL('../dist/media/',import.meta.url)))return;
@@ -26,7 +28,7 @@ const server=http.createServer(async(req,res)=>{
     for await(const chunk of req){size+=chunk.length;if(size>10*1024*1024+10000){res.writeHead(413,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Слишком большой запрос.'}));return;}chunks.push(chunk);}
     const host=req.headers.host||'localhost';
     const request=new Request('http://'+host+req.url,{method:req.method,headers:req.headers,...(!['GET','HEAD'].includes(req.method)?{body:Buffer.concat(chunks)}:{})});
-    const response=await worker.fetch(request,runtime,{waitUntil(task){Promise.resolve(task).catch(()=>{});}});
+    const response=await admin(request,{secure:req.headers['x-forwarded-proto']==='https',ip:req.headers['x-forwarded-for']?.split(',').at(-1)?.trim()||req.socket.remoteAddress})||await worker.fetch(request,runtime,{waitUntil(task){Promise.resolve(task).catch(()=>{});}});
     res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));
   }catch(error){console.error('HTTP request failed',error.name);if(!res.headersSent)res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'Сервис временно недоступен. Попробуйте ещё раз.'}));}
 });

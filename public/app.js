@@ -10,6 +10,8 @@ let agentModule;
 let toastTimer;
 let caseAnimation;
 let contactFlow=false;
+const interviewMessages=[];
+export function recordInterviewMessage(role,content){if(contactFlow){interviewMessages.push({role,content:String(content).slice(0,3000)});if(interviewMessages.length>40)interviewMessages.shift();}}
 
 const arrow = '<svg class="arrow-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const chevron = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -104,7 +106,7 @@ initOrbs();
 const heroObserver=new IntersectionObserver(([e])=>document.body.classList.toggle('hero-visible',e.isIntersecting&&!$('#home-view').hidden),{threshold:.25});heroObserver.observe($('#home'));
 const sectionObserver=new IntersectionObserver(entries=>{for(const e of entries){if(e.isIntersecting&&!$('#home-view').hidden){state.section=e.target.id;window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));}}},{rootMargin:'-20% 0px -55% 0px'});$$('#home-view>section').forEach(s=>sectionObserver.observe(s));
 function contactContext(){
-  const fields={name:$('#contact-form [name=name]').value.trim(),contact:$('#contact-form [name=contact]').value.trim(),message:$('#contact-form [name=message]').value.trim()};
+  const fields={name:$('#contact-form [name=name]').value.trim(),contact:$('#contact-form [name=contact]').value.trim(),message:$('#contact-form [name=message]').value.trim(),...Object.fromEntries(['process','goal','constraints'].map(key=>[key,$(`#contact-form [name=${key}]`).value.trim()]))};
   return {contact_request:contactFlow,contact_missing:Object.keys(fields).filter(key=>!fields[key]),...(contactFlow?{contact_draft:fields}:{})};
 }
 export function getContext(){return{current_page:state.page,visible_section:state.section,active_case:state.caseId,device:innerWidth<=650?'mobile':'desktop',...contactContext()};}
@@ -117,7 +119,8 @@ export function executeSiteAction(action,target='',summary='',draft={}) {
   if(action==='clear_contact_request'){
     const field=target||'all';
     if(!['all','name','contact','message'].includes(field))throw new Error('Неизвестное поле формы');
-    const fields=field==='all'?['name','contact','message']:[field];
+    const fields=field==='all'?['name','contact','message','process','goal','constraints']:[field];
+    interviewMessages.length=0;
     for(const key of fields)$(`#contact-form [name=${key}]`).value='';
     $('#contact-form [name=consent]').checked=false;contactFlow=false;
     // Reuse the form's edit lifecycle; clearing a draft never submits a request.
@@ -141,13 +144,13 @@ export function executeSiteAction(action,target='',summary='',draft={}) {
   }
   if(['open_contact','prepare_contact_request','begin_contact_request'].includes(action))target='contact';
   if(!sections.includes(target))throw new Error('Неизвестный раздел');
-  if(action==='begin_contact_request')contactFlow=true;
+  if(action==='begin_contact_request'){if(!contactFlow)interviewMessages.length=0;contactFlow=true;}
   if(action==='prepare_contact_request'){
-    const fields={name:draft.name,contact:draft.contact,message:summary};
+    const fields={name:draft.name,contact:draft.contact,message:summary,process:draft.process,goal:draft.goal,constraints:draft.constraints};
     if(!Object.values(fields).some(value=>typeof value==='string'&&value.trim()))throw new Error('Нет данных для формы');
     for(const [key,value] of Object.entries(fields)){
       if(typeof value!=='string'||!value.trim())continue;
-      if(value.length>({name:100,contact:180,message:4000})[key])throw new Error('Слишком длинное поле');
+      if(value.length>({name:100,contact:180,message:4000,process:2000,goal:2000,constraints:2000})[key])throw new Error('Слишком длинное поле');
     }
     for(const [key,value] of Object.entries(fields))if(typeof value==='string'&&value.trim())$(`#contact-form [name=${key}]`).value=value.trim();
     contactFlow=true;$('#contact-form').dispatchEvent(new Event('input',{bubbles:true}));
@@ -176,10 +179,10 @@ form.addEventListener('submit',async e=>{
   form.dataset.pending='true';form.dispatchEvent(new Event('contact-state'));button.disabled=true;button.textContent='Отправляю…';status.textContent='';status.className='form-status';
   try{
     const values=Object.fromEntries(new FormData(form));
-    const r=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...values,consent:values.consent==='on',requestId,source:state.caseId||'website'})});
+    const r=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...values,conversation:interviewMessages,consent:values.consent==='on',requestId,source:state.caseId||'website'})});
     const result=await r.json();if(!r.ok)throw new Error(result.error||'Не удалось сохранить запрос.');
     const current=Object.fromEntries(new FormData(form));
-    const changed=['name','contact','message','consent'].some(key=>current[key]!==values[key]);
+    const changed=['name','contact','message','process','goal','constraints','consent'].some(key=>current[key]!==values[key]);
     if(!changed)contactFlow=false;submitted=!changed;form.dataset.submitted=String(submitted);status.classList.add('success');
     if(changed){requestId=crypto.randomUUID();status.textContent='Сообщение сохранено. Изменения в форме ещё не отправлены.';button.textContent='Отправить сообщение';}
     else{status.textContent='Спасибо! Сообщение сохранено.';button.textContent='Сообщение отправлено';}

@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Панель — TIMUROID</title><link rel="stylesheet" href="/admin.css"><script type="module" src="/admin.js"></script></head>
+<body>
+  <main id="login-view" class="login-view"><a class="brand" href="/">im.timuroid.ru</a><div class="login-copy"><h1>За кулисами.</h1><p>Заявки, интервью и знания агента.</p></div><form id="login-form"><label>Логин<input name="login" autocomplete="username" value="timuroid" required></label><label>Пароль<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Войти</button><p id="login-error" role="status"></p></form></main>
+  <div id="admin-view" hidden><header class="admin-header"><a class="brand" href="/">im.timuroid.ru</a><span>Панель владельца</span><button id="logout" type="button">Выйти</button></header>
+    <div class="admin-layout"><nav class="admin-nav" aria-label="Разделы панели"><button type="button" data-tab="inbox" aria-current="page">Заявки и интервью <span id="inbox-count"></span></button><button type="button" data-tab="knowledge">Знания о проектах</button><button type="button" data-tab="prompts">Промпты и модели</button><a href="/" target="_blank" rel="noopener">Открыть сайт</a></nav>
+      <main class="admin-content"><p id="admin-error" role="status" hidden></p>
+        <section id="tab-inbox"><div class="page-heading"><div><h1>Заявки и интервью.</h1><p>Контакты, задача и ход разговора после подтверждённой отправки.</p></div><button id="refresh-inbox" type="button">Обновить</button></div><div class="inbox-layout"><div id="lead-list" aria-label="Сохранённые заявки"></div><article id="lead-detail"><p class="empty-state">Выберите заявку, чтобы прочитать бриф и интервью.</p></article></div><button id="more-leads" type="button" hidden>Показать ещё</button></section>
+        <section id="tab-knowledge" hidden><div class="page-heading"><div><h1>Что знает агент.</h1><p>Публичные факты и расширенные описания, которые получает модель.</p></div></div><div id="knowledge-content"></div></section>
+        <section id="tab-prompts" hidden><div class="page-heading"><div><h1>Как устроен разговор.</h1><p>Точные инструкции текущего выпуска. Изменения вносятся в исходники сайта.</p></div></div><div id="prompt-content"></div></section>
+      </main>
+    </div>
+  </div>
+</body></html>

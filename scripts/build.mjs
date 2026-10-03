@@ -4,7 +4,7 @@ const root=process.cwd();
 await mkdir(path.join(root,'dist/server'),{recursive:true});
 // Recreate only generated media output, so renamed source assets do not linger.
 await rm(path.join(root,'dist/media'),{recursive:true,force:true});
-const assets={};const types={'.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.mp4':'video/mp4','.ttf':'font/ttf'};
+const assets={};const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.jpg':'image/jpeg','.mp4':'video/mp4','.ttf':'font/ttf'};
 for(const entry of await readdir(path.join(root,'public'),{withFileTypes:true})){
   if(entry.name==='media'&&entry.isDirectory()){
     await cp(path.join(root,'public/media'),path.join(root,'dist/media'),{recursive:true});continue;
@@ -16,8 +16,9 @@ for(const entry of await readdir(path.join(root,'public'),{withFileTypes:true}))
 const html=await readFile(path.join(root,'public/index.html'),'utf8');
 const site=JSON.parse(await readFile(path.join(root,'content/site.json'),'utf8'));
 const knowledge=JSON.parse(await readFile(path.join(root,'content/agent-knowledge.json'),'utf8'));
+const prompts=JSON.parse(await readFile(path.join(root,'content/agent-prompts.json'),'utf8'));
 const worker=await readFile(path.join(root,'server/worker.mjs'),'utf8');
-const injection=`const SITE=${JSON.stringify(site)};\nconst AGENT_KNOWLEDGE=${JSON.stringify(knowledge)};\nconst HTML=${JSON.stringify(html.replace('<script type="module"','<!--SITE_DATA-->\n  <script type="module"'))};\nconst ASSETS=${JSON.stringify(assets)};`;
+const injection=`const SITE=${JSON.stringify(site)};\nconst AGENT_KNOWLEDGE=${JSON.stringify(knowledge)};\nconst AGENT_PROMPTS=${JSON.stringify(prompts)};\nconst HTML=${JSON.stringify(html.replace('<script type="module"','<!--SITE_DATA-->\n  <script type="module"'))};\nconst ASSETS=${JSON.stringify(assets)};`;
 await writeFile(path.join(root,'dist/server/index.js'),worker.replace('// ASSET_IMPORT',injection));
 await mkdir(path.join(root,'dist/server/drizzle'),{recursive:true});
 for(const file of await readdir(path.join(root,'drizzle'))){if(file.endsWith('.sql'))await copyFile(path.join(root,'drizzle',file),path.join(root,'dist/server/drizzle',file));}
