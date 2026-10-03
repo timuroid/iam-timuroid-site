@@ -38,10 +38,10 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
   let workspace=workspaces.get(network);
   if(!workspace){
     const points=network.nodes.map(n=>({x:0,y:0,z:0,scale:1,id:n.id}));
-    workspace={points,ordered:[...points],bins:Array.from({length:10},()=>[])};workspaces.set(network,workspace);
+    workspace={points,ordered:[...points],bins:Array.from({length:10},()=>[]),outline:new Float32Array(48),smooth:new Float32Array(48)};workspaces.set(network,workspace);
   }
-  const {points,ordered,bins}=workspace;
-  const unit=size*.31,c=size/2,ay=time*.12+pointer[0]*.12,ax=-.22+pointer[1]*.12;
+  const {points,ordered,bins,outline,smooth}=workspace;
+  const unit=size*.33,c=size/2,ay=time*.12+pointer[0]*.12,ax=-.22+pointer[1]*.12;
   const cy=Math.cos(ay),sy=Math.sin(ay),cx=Math.cos(ax),sx=Math.sin(ax);
   const activity=reduced?0:state==='speaking'?.36+energy*.65:state==='thinking'?.28:state==='listening'?.09+energy*.65:0;
   const speech=reduced?0:Number.isFinite(speechActivity)?speechActivity:state==='speaking'?1:0;
@@ -52,24 +52,33 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
     const spoke=Math.pow((1+Math.sin(time*4.6+n.id*.83))/2,3);
     // Live audio stretches surface vertices into individual spikes. The inner
     // vertices move less, keeping long links readable through the open volume.
-    const audioSpike=speech*Math.min(.38,Math.max(.025,envelope)*(.18+.5*spoke))*(n.shell>.7?1:.16);
+    const audioSpike=speech*Math.min(.16,Math.max(.025,envelope)*(.18+.5*spoke))*(n.shell>.7?1:.16);
     const breathing=reduced?1:1+.024*Math.sin(time*.65+n.id*.38)+activity*(.045*Math.sin(time*1.3+n.id*.53)+burst*.14)+audioSpike;
     const x=(n.x*cy+n.z*sy)*breathing,y=(n.y*cx-(-n.x*sy+n.z*cy)*sx)*breathing,z=(n.y*sx+(-n.x*sy+n.z*cy)*cx)*breathing;
     const perspective=3.8/(3.8-z);
     const point=points[n.id];point.x=c+x*unit*perspective*expansion;point.y=c+y*unit*perspective*expansion;point.z=z;point.scale=perspective;
   }
-  // One radial field defines both the liquid skin and the graph envelope.
-  // Containment is applied after perspective, so back/front nodes cannot escape.
-  const skinRadius=angle=>size*.365*expansion*(1+(reduced?0:
-    .025*Math.sin(angle*3+time*.65)+.015*Math.sin(angle*5-time*.9)
-    +speech*Math.min(.06,energy*.06)*Math.sin(angle*9+time*3)));
+  // Derive the liquid boundary from the projected graph, rather than an
+  // unrelated speech sine wave. A short angular filter softens isolated spikes.
+  outline.fill(size*.38*expansion);
+  for(const p of points){
+    const dx=p.x-c,dy=p.y-c,angle=(Math.atan2(dy,dx)+tau)%tau;
+    const bin=Math.floor(angle/tau*48)%48;
+    outline[bin]=Math.max(outline[bin],Math.min(size*.435,Math.hypot(dx,dy)+size*.014));
+  }
+  for(let i=0;i<48;i++){
+    smooth[i]=(outline[(i+46)%48]+2*outline[(i+47)%48]+3*outline[i]+2*outline[(i+1)%48]+outline[(i+2)%48])/9;
+  }
+  const skinRadius=angle=>{
+    const position=((angle+tau)%tau)/tau*48,index=Math.floor(position),f=position-index;
+    const blend=f*f*(3-2*f);
+    return smooth[index%48]*(1-blend)+smooth[(index+1)%48]*blend;
+  };
   for(const p of points){
     const dx=p.x-c,dy=p.y-c,distance=Math.hypot(dx,dy),angle=Math.atan2(dy,dx);
     const radius=skinRadius(angle);
-    // Smoothly compress the outer shell into the skin; retain interior depth.
-    const ratio=distance/(size*.365*expansion);
-    const mapped=radius*.97*ratio/Math.pow(1+Math.pow(ratio,14),1/14);
-    const factor=distance?mapped/distance:1;
+    // Keep node centres safely inside the smoothed surface.
+    const factor=distance?Math.min(1,(radius-size*.009)/distance):1;
     p.x=c+dx*factor;p.y=c+dy*factor;
   }
   ctx.save();ctx.beginPath();

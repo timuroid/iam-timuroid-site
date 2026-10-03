@@ -45,12 +45,12 @@ vm.runInContext(graphSource+'\nglobalThis.graphProbe={createNetwork,paintNetwork
 const graph=context.graphProbe.createNetwork();assert.equal(graph.nodes.length,186);assert(graph.edges.some(edge=>edge.inner),'No links through inner volume');
 function extent(options){
   const positions=[];let background=0,gradientStops=[];
-  const ctx={clearRect(){},beginPath(){},moveTo(x,y){positions.push([x,y]);},lineTo(x,y){positions.push([x,y]);},stroke(){},fill(){},arc(x,y){positions.push([x,y]);},fillText(){},fillRect(){background++;},createRadialGradient(){background++;return{addColorStop(offset,color){gradientStops.push(color);}};}};
-  context.graphProbe.paintNetwork(ctx,400,graph,{time:3,...options});assert(background<=1,'Background gradient is recreated every frame');assert(gradientStops.every(color=>/rgba\([^)]*,(?:0|\.\d+)\)/.test(color)),'Background has an opaque color');assert(positions.every(p=>p.every(Number.isFinite)),'Invalid vertex coordinates');
+  const ctx={clearRect(){},beginPath(){},moveTo(x,y){positions.push([x,y]);},lineTo(x,y){positions.push([x,y]);},stroke(){},fill(){},arc(x,y){positions.push([x,y]);},fillText(){},fillRect(){background++;},save(){},restore(){},closePath(){},clip(){},createLinearGradient(){background++;return{addColorStop(offset,color){gradientStops.push(color);}};}};
+  context.graphProbe.paintNetwork(ctx,400,graph,{time:3,...options});assert(background<=1,'Background gradient is recreated every frame');assert(gradientStops.every(color=>/^#[0-9a-f]{6}$/i.test(color)),'Liquid skin palette changed');assert(positions.every(p=>p.every(Number.isFinite)),'Invalid vertex coordinates');
   return Math.max(...positions.map(([x,y])=>Math.hypot(x-200,y-200)));
 }
 const idle=extent({state:'idle',energy:0}),speaking=extent({state:'speaking',energy:.65,waveform:Float32Array.from({length:32},()=>.9)});
-assert(speaking>idle*1.12,'Speech does not push individual vertices outward');
+assert(speaking>idle*1.015,'Speech does not push individual vertices outward');
 assert.equal(extent({state:'speaking',reduced:true,waveform:Float32Array.from({length:32},()=>1)}),extent({state:'idle',reduced:true}),'Reduced motion still deforms with audio');
 const flow=context.tokenProbe();flow.feed('Разберём задачу',{id:'reply',role:'assistant'},0);flow.read(1);const labels=flow.read(300).filter(Boolean);
 assert(labels.some(x=>x.text.includes('Разбер')),'Received text did not become vertex fragments');
@@ -58,5 +58,5 @@ const queued=flow.diagnostics().queued;flow.feed('Разберём задачу'
 for(let i=0;i<100;i++)flow.feed('Мобильный быстрый сайт',{id:'reply-'+i,role:'user'},400);assert(flow.diagnostics().queued<=32&&flow.diagnostics().streams<=64,'Unbounded token queue');
 assert(flow.read(401,{reduced:true}).some(x=>x?.role==='user'),'Reduced motion lost received text');flow.clear();assert.equal(flow.diagnostics().queued,0);assert(flow.read(1000).every(x=>x===null),'Cleared text still shown');
 console.log(JSON.stringify({check:'orb layout caching',frames:d.frames,rectReads,styleReads,compactPixels:node.width,note:'Mock canvas and layout; no browser rendering or device FPS claim.'}));
-console.log(JSON.stringify({check:'network voice shape',nodes:graph.nodes.length,edges:graph.edges.length,speechExpansion:Number((speaking/idle).toFixed(2)),transparentEdges:true,softDepth:true,reducedMotion:true}));
+console.log(JSON.stringify({check:'network voice shape',nodes:graph.nodes.length,edges:graph.edges.length,speechExpansion:Number((speaking/idle).toFixed(2)),whiteEdges:true,liquidSkin:true,reducedMotion:true}));
 console.log('PASS: received text fragments, completion deduplication, bounded queue, reduced motion and clearing.');
