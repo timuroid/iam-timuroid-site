@@ -7,7 +7,7 @@
 |---|---|
 | `public/index.html`, `styles.css`, `app.js` | Страница, кейсы, навигация, форма и черновик интервью |
 | `public/agent.js` | Чат, WebRTC, состояния микрофона и очередь ответов |
-| `public/network-orb.js`, `orb.js`, `orb-tokens.js` | Прозрачный 3D-граф, звук и живые фрагменты текста |
+| `public/network-orb.js`, `orb.js`, `orb-tokens.js` | Белый 3D-граф в жидком navy-силуэте, звук и живые фрагменты текста |
 | `public/admin.*`, `server/admin.mjs` | Панель владельца и закрытый API |
 | `content/site.json` | Публичные тексты и факты |
 | `content/agent-knowledge.json` | Расширенный контекст разделов и каждого проекта |

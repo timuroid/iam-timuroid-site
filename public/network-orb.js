@@ -1,4 +1,4 @@
-// Real 3D coordinates projected into a shared, transparent Canvas surface.
+// A white 3D network inside a shared liquid navy silhouette.
 // Connections and node identities are stable; only projection and light move.
 const tau=Math.PI*2;
 const tokens=['▁по','мыс','▁как','за','ние','▁мы','дан','ость','▁я','про','ать','▁и','ток','смы','▁что','реш'];
@@ -28,13 +28,13 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
   ctx.clearRect(0,0,size,size);
   let backdrop=backdrops.get(ctx);
   if(!backdrop||backdrop.size!==size){
-    const gradient=ctx.createRadialGradient(size*.46,size*.44,size*.025,size*.5,size*.5,size*.43);
-    gradient.addColorStop(0,'rgba(12,31,53,.15)');
-    gradient.addColorStop(.58,'rgba(22,49,74,.075)');
-    gradient.addColorStop(1,'rgba(22,49,74,0)');
+    const gradient=ctx.createLinearGradient(size*.2,size*.16,size*.8,size*.85);
+    gradient.addColorStop(0,'#263b50');
+    gradient.addColorStop(.42,'#10263d');
+    gradient.addColorStop(1,'#061323');
     backdrop={size,gradient};backdrops.set(ctx,backdrop);
   }
-  ctx.fillStyle=backdrop.gradient;ctx.beginPath();ctx.arc(size/2,size/2,size*.43,0,tau);ctx.fill();
+
   let workspace=workspaces.get(network);
   if(!workspace){
     const points=network.nodes.map(n=>({x:0,y:0,z:0,scale:1,id:n.id}));
@@ -58,6 +58,26 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
     const perspective=3.8/(3.8-z);
     const point=points[n.id];point.x=c+x*unit*perspective*expansion;point.y=c+y*unit*perspective*expansion;point.z=z;point.scale=perspective;
   }
+  // One radial field defines both the liquid skin and the graph envelope.
+  // Containment is applied after perspective, so back/front nodes cannot escape.
+  const skinRadius=angle=>size*.365*expansion*(1+(reduced?0:
+    .025*Math.sin(angle*3+time*.65)+.015*Math.sin(angle*5-time*.9)
+    +speech*Math.min(.06,energy*.06)*Math.sin(angle*9+time*3)));
+  for(const p of points){
+    const dx=p.x-c,dy=p.y-c,distance=Math.hypot(dx,dy),angle=Math.atan2(dy,dx);
+    const radius=skinRadius(angle);
+    // Smoothly compress the outer shell into the skin; retain interior depth.
+    const ratio=distance/(size*.365*expansion);
+    const mapped=radius*.97*ratio/Math.pow(1+Math.pow(ratio,14),1/14);
+    const factor=distance?mapped/distance:1;
+    p.x=c+dx*factor;p.y=c+dy*factor;
+  }
+  ctx.save();ctx.beginPath();
+  for(let i=0;i<=128;i++){
+    const angle=i*tau/128,radius=skinRadius(angle),x=c+Math.cos(angle)*radius,y=c+Math.sin(angle)*radius;
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.closePath();ctx.fillStyle=backdrop.gradient;ctx.fill();ctx.clip();
   // Bin each edge once. Reuse all arrays rather than allocating projection
   // objects and testing every edge ten times per animation frame.
   for(const bucket of bins)bucket.length=0;
@@ -73,7 +93,7 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
       ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
     }
     ctx.lineWidth=Math.max(.8,size*.0028*(.8+bin*.045));
-    ctx.strokeStyle=`rgba(${bin>5?'12,33,56':'32,61,86'},${.13+bin*.053+energy*.06})`;ctx.stroke();
+    ctx.strokeStyle=`rgba(255,255,255,${.13+bin*.047+energy*.04})`;ctx.stroke();
   }
   // The rear nodes are drawn first. Sparse glyphs are anchored to this graph.
   ordered.sort((a,b)=>a.z-b.z);
@@ -85,15 +105,11 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
     if(p.id%step&&!label)continue;
     const front=Math.max(0,Math.min(1,(p.z+1)*.5)),active=(Math.sin(p.id*.91+time*.8)+1)*.5;
     const r=(.9+front*1.05)*size/400*(1+energy*.22);
-    ctx.fillStyle=`rgba(${p.id%19===0?'37,76,111':'11,32,54'},${.3+front*.7})`;
+    ctx.fillStyle=`rgba(255,255,255,${.3+front*.7})`;
     ctx.beginPath();ctx.arc(p.x,p.y,Math.max(.65,r),0,tau);ctx.fill();
-    if(front>.57&&active>.7){
-      ctx.fillStyle=`rgba(38,80,114,${(.12+energy*.16)*active})`;ctx.beginPath();ctx.arc(p.x,p.y,r*2.3,0,tau);ctx.fill();
-      ctx.fillStyle='rgba(16,43,69,.95)';ctx.beginPath();ctx.arc(p.x,p.y,Math.max(.6,r*.6),0,tau);ctx.fill();
-    }
     if((live?size>=150&&label:detailed&&p.id%13===0)&&p.z>-.45){
       const opacity=(.5+front*.45)*(label?.alpha??1);
-      ctx.fillStyle=`rgba(${label?.role==='user'?'126,90,59':'22,51,77'},${opacity})`;
+      ctx.fillStyle=`rgba(${label?.role==='user'?'208,190,159':'255,255,255'},${opacity})`;
       ctx.fillText(label?.text||network.nodes[p.id].token,p.x+size*.012,p.y-size*.009);
     }
   }
@@ -102,6 +118,7 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
     if((a.z+b.z)*.5<-.2)continue;
     const t=(time*(.11+activity*.27)+edge.phase)%1;
     const x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;
-    ctx.fillStyle=`rgba(29,73,108,${.5+energy*.4})`;ctx.beginPath();ctx.arc(x,y,Math.max(.7,size*.003),0,tau);ctx.fill();
+    ctx.fillStyle=`rgba(255,255,255,${.5+energy*.4})`;ctx.beginPath();ctx.arc(x,y,Math.max(.7,size*.003),0,tau);ctx.fill();
   }
+  ctx.restore();
 }
