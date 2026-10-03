@@ -35,7 +35,7 @@ class Element {
 }
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 function harness({nativeControls=false}={}){
-  const doc={hidden:false,activeElement:null,createElement:tag=>new Element(tag,doc)};
+  const doc={hidden:false,activeElement:null,listeners:{},addEventListener(type,callback){(this.listeners[type]??=[]).push(callback);},createElement:tag=>new Element(tag,doc)};
   doc.body=new Element('body',doc);doc.activeElement=doc.body;
   const nodes=new Map();
   const buttons=new Set(['#agent-send','#agent-voice-toggle','#agent-interrupt','#agent-dock-voice','#agent-resume','#agent-voice-stop','#agent-to-text','.close-agent','.hero-orb-button']);
@@ -168,7 +168,7 @@ async function check(name,run){try{await run();results.push({name,ok:true});}cat
     h.win.visualViewport.height=844;h.win.visualViewport.offsetTop=0;h.api.updateViewport();expect(!panel.classList.contains('is-typing')&&h.api.state().presentation==='overlay','restored viewport did not return local sheet');
   });
   await check('observer collapses only after seen; typing suppresses collapse; resume resets seen',async()=>{
-    const h=harness();h.api.open({mode:'voice',activate:false});const observer=h.logs.observers.find(x=>x.target===h.nodes.get('.hero-art'));expect(h.api.state().presentation==='inline','initial open not inline');
+    const h=harness();h.api.open({mode:'voice',activate:false});const observer=h.logs.observers.find(x=>x.target===h.nodes.get('.hero-orb-button'));expect(h.api.state().presentation==='inline','initial open not inline');
     observer.callback([{isIntersecting:true}]);h.nodes.get('#agent-input').focus();h.win.visualViewport.height=520;h.api.updateViewport();observer.callback([{isIntersecting:false}]);expect(h.api.state().presentation==='inline','keyboard typing triggered collapse');
     h.win.visualViewport.height=844;h.api.updateViewport();observer.callback([{isIntersecting:false}]);expect(h.api.state().presentation==='dock'&&h.api.state().sessionActive,'seen workspace did not collapse');
     h.api.open({mode:'voice',activate:false});observer.callback([{isIntersecting:true}]);observer.callback([{isIntersecting:false}]);expect(h.api.state().presentation==='dock','resumed observer no longer collapses');
@@ -216,7 +216,7 @@ async function check(name,run){try{await run();results.push({name,ok:true});}cat
     const h=harness();const {peer,track}=await h.connect();peer.connectionState='disconnected';peer.onconnectionstatechange();const timer=[...h.logs.timers.values()].find(t=>t.ms===8000&&!t.interval);timer.callback();expect(!h.api.state().voiceActive&&track.stopped&&peer.closed&&h.api.state().sessionActive,'recovery expiry leaked media/closed conversation');expect(h.nodes.get('#agent-dock').dataset.mic==='error'&&h.nodes.get('#agent-voice-stop').textContent==='Включить микрофон','expiry control not reset');expect(h.api.state().error.includes('Соединение прервалось'),'expiry error absent');
   });
   await check('hero reentry restores inline without scrolling or resetting mode',async()=>{
-    const h=harness();h.api.open({mode:'voice',activate:false});const generation=h.api.state().conversationGeneration,observer=h.logs.observers.find(x=>x.target===h.nodes.get('.hero-art'));observer.callback([{isIntersecting:false}]);expect(h.api.state().presentation==='dock','hero exit did not dock');h.win.scrollY=0;observer.callback([{isIntersecting:true}]);expect(h.api.state().presentation==='inline'&&h.nodes.get('.hero-art').classList.contains('is-agent-active'),'hero reentry did not restore inline');expect(h.api.state().conversationGeneration===generation&&h.api.state().mode==='voice'&&h.win.scrollY===0,'reentry reset or scrolled');
+    const h=harness();h.api.open({mode:'voice',activate:false});const generation=h.api.state().conversationGeneration,observer=h.logs.observers.find(x=>x.target===h.nodes.get('.hero-orb-button'));observer.callback([{isIntersecting:false}]);expect(h.api.state().presentation==='dock','hero exit did not dock');h.win.scrollY=0;observer.callback([{isIntersecting:true}]);expect(h.api.state().presentation==='inline'&&h.nodes.get('.hero-art').classList.contains('is-agent-active'),'hero reentry did not restore inline');expect(h.api.state().conversationGeneration===generation&&h.api.state().mode==='voice'&&h.win.scrollY===0,'reentry reset or scrolled');
   });
   await check('contact flow partial drafts preserve fields; cancel keeps draft; career action exists',async()=>{
     const h=harness(),app=installActor(h);h.api.open({mode:'text'});const a=app.actor.executeSiteAction('begin_contact_request');expect(a.contact_request,'begin contact flow absent');app.actor.executeSiteAction('prepare_contact_request','','Описание',{name:'Тест',contact:'@example'});app.actor.executeSiteAction('prepare_contact_request','','Уточнённая задача',{});const ctx=app.actor.getContext();expect(ctx.contact_draft.name==='Тест'&&ctx.contact_draft.contact==='@example'&&ctx.contact_draft.message==='Уточнённая задача','partial draft cleared fields');app.actor.executeSiteAction('cancel_contact_request');expect(!app.actor.getContext().contact_request&&!('contact_draft' in app.actor.getContext())&&h.nodes.get('#contact-form [name=name]').value==='Тест','cancel cleared draft or exposed inactive draft');const career=app.site.career.find(x=>x.id);const result=app.actor.executeSiteAction('show_career',career.id);expect(result.ok&&h.nodes.get('#career-'+career.id).scrolled,'career action unavailable');
@@ -236,9 +236,39 @@ async function check(name,run){try{await run();results.push({name,ok:true});}cat
     h.win.dispatchEvent(new h.context.CustomEvent('site-context',{detail:{contact_request:false}}));
     expect(h.logs.sent.filter(e=>e.type==='session.update').at(-1).session.instructions==='Original website helper instructions','normal voice instructions not restored');
   });
+  await check('form then Bauman navigation restores the voice orb on return',async()=>{
+    const h=harness();const {track,peer}=await h.connect(),app=installActor(h),generation=h.api.state().voiceGeneration;
+    app.actor.executeSiteAction('begin_contact_request','contact');
+    app.actor.executeSiteAction('prepare_contact_request','contact','Нужен помощник',{name:'Тест',contact:'test@example.test'});
+    app.actor.executeSiteAction('show_experience','bmstu-teaching');
+    const observer=h.logs.observers.find(x=>x.target===h.nodes.get('.hero-orb-button'));
+    observer.callback([{isIntersecting:false,intersectionRatio:0}]);h.win.scrollY=0;
+    observer.callback([{isIntersecting:true,intersectionRatio:.85}]);
+    expect(h.api.state().presentation==='inline'&&h.nodes.get('#agent-dock').hidden&&!h.nodes.get('#agent-panel').hidden,'voice orb did not return to hero');
+    expect(h.api.state().voiceActive&&!track.stopped&&!peer.closed&&h.api.state().voiceGeneration===generation,'return restarted voice');
+    expect(h.nodes.get('#contact-form [name=name]').value==='Тест'&&h.nodes.get('#contact-form [name=message]').value==='Нужен помощник','return lost contact draft');
+  });
+  await check('navigation away does not immediately reopen the hero at a falling threshold',async()=>{
+    const h=harness();await h.connect();const observer=h.logs.observers.find(x=>x.target===h.nodes.get('.hero-orb-button'));
+    observer.callback([{intersectionRatio:1}]);h.api.collapse({restoreOnHero:true});
+    observer.callback([{intersectionRatio:.8}]);expect(h.api.state().presentation==='dock','falling ratio reopened hero during navigation');
+    observer.callback([{intersectionRatio:.1}]);observer.callback([{intersectionRatio:.85}]);expect(h.api.state().presentation==='inline','rising ratio did not restore hero');
+  });
+  await check('touch focus has no frame while keyboard navigation retains visible focus',async()=>{
+    const h=harness();h.doc.listeners.keydown[0]({key:'Tab'});expect(h.doc.body.classList.contains('is-keyboard-navigation'),'Tab did not enable focus indication');
+    h.doc.listeners.pointerdown[0]();expect(!h.doc.body.classList.contains('is-keyboard-navigation'),'touch retained keyboard frame');
+  });
+  await check('mobile chat has a persistent opaque sheet across keyboard viewport changes',async()=>{
+    const h=harness();h.api.open({mode:'text',local:true});const overlay=h.nodes.get('#agent-overlay');
+    expect(overlay.classList.contains('is-chat-sheet')&&h.doc.body.classList.contains('agent-chat-open'),'chat mask waits for keyboard');
+    h.nodes.get('#agent-input').focus();h.win.visualViewport.height=420;h.win.visualViewport.offsetTop=35;h.api.updateViewport();
+    expect(overlay.classList.contains('is-chat-sheet')&&overlay.style['--agent-viewport-height']==='420px','keyboard removed full backdrop');
+    h.win.visualViewport.height=844;h.api.updateViewport();expect(overlay.classList.contains('is-chat-sheet'),'keyboard dismissal removed chat sheet');
+    h.api.collapse();expect(!overlay.classList.contains('is-chat-sheet')&&!h.doc.body.classList.contains('agent-chat-open'),'docked chat leaves page locked');
+  });
   await check('stable host and hysteresis prevent hero/dock oscillation',async()=>{
     const h=harness();h.api.open({mode:'voice',activate:false});const panel=h.nodes.get('#agent-panel'),host=panel.parentNode,hero=h.nodes.get('.hero-art'),foot=h.nodes.get('#agent-home-space');
-    const children=[...hero.children];const observer=h.logs.observers.find(x=>x.target===hero);observer.callback([{isIntersecting:true,intersectionRatio:1}]);observer.callback([{isIntersecting:true,intersectionRatio:.1}]);
+    const children=[...hero.children];const observer=h.logs.observers.find(x=>x.target===h.nodes.get('.hero-orb-button'));observer.callback([{isIntersecting:true,intersectionRatio:1}]);observer.callback([{isIntersecting:true,intersectionRatio:.1}]);
     expect(h.api.state().presentation==='dock','scroll exit did not dock');
     for(const ratio of [.2,.4,.65,.79,.6])observer.callback([{isIntersecting:true,intersectionRatio:ratio}]);
     expect(h.api.state().presentation==='dock','partial visibility oscillated to hero');

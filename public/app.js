@@ -62,7 +62,7 @@ function renderRoute({scroll=true,focus=false}={}) {
   state.caseId = null;
   const match = location.pathname.match(/^\/cases\/([^/]+)\/?$/);
   const c = match && site.cases.find(x=>x.id===match[1]);
-  if(c||location.pathname==='/privacy')agentModule?.collapse();
+  if(c||location.pathname==='/privacy')agentModule?.collapse({restoreOnHero:true});
   $('#home-view').hidden = Boolean(c || location.pathname === '/privacy');
   $('#case-view').hidden = !c;
   document.body.classList.toggle('reading-case',Boolean(c));
@@ -96,8 +96,8 @@ document.addEventListener('click', async e => {
   const url=new URL(link.href,location.origin);
   if(url.origin!==location.origin||!['/','/privacy'].includes(url.pathname)&&!url.pathname.startsWith('/cases/'))return;
   const fromAgent=agentModule?.isOpen()||false;
-  if(url.pathname===location.pathname&&url.hash){e.preventDefault();if(fromAgent)agentModule?.collapse();$('.mobile-nav').hidden=true;$('.menu-toggle').setAttribute('aria-expanded','false');history.replaceState({...history.state,scrollY:window.scrollY},'',location.href);history.pushState({},'',url.pathname+url.hash);requestAnimationFrame(()=>{const section=document.getElementById(decodeURIComponent(url.hash.slice(1)));section?.scrollIntoView({behavior:reduced.matches?'instant':'smooth'});if(fromAgent)focusDestination(section);});return;}
-  e.preventDefault();if(fromAgent)agentModule?.collapse();navigate(url.pathname+url.hash,{focus:fromAgent});
+  if(url.pathname===location.pathname&&url.hash){e.preventDefault();if(fromAgent)agentModule?.collapse({restoreOnHero:true});$('.mobile-nav').hidden=true;$('.menu-toggle').setAttribute('aria-expanded','false');history.replaceState({...history.state,scrollY:window.scrollY},'',location.href);history.pushState({},'',url.pathname+url.hash);requestAnimationFrame(()=>{const section=document.getElementById(decodeURIComponent(url.hash.slice(1)));section?.scrollIntoView({behavior:reduced.matches?'instant':'smooth'});if(fromAgent)focusDestination(section);});return;}
+  e.preventDefault();if(fromAgent)agentModule?.collapse({restoreOnHero:true});navigate(url.pathname+url.hash,{focus:fromAgent});
 });
 $('.menu-toggle').addEventListener('click',e=>{requestHaptic(e,10);const open=$('.menu-toggle').getAttribute('aria-expanded')==='true';$('.menu-toggle').setAttribute('aria-expanded',String(!open));$('.mobile-nav').hidden=open;});
 renderRoute({scroll:Boolean(location.hash)});
@@ -132,12 +132,12 @@ export function executeSiteAction(action,target='',summary='',draft={}) {
   if(!['show_section','show_case','show_experience','show_career','begin_contact_request','open_contact','prepare_contact_request'].includes(action))throw new Error('Неизвестное действие');
   if(action==='show_case'){
     const c=site.cases.find(c=>c.id===target);if(!c)throw new Error('Неизвестный кейс');
-    agentModule?.collapse();navigate(`/cases/${target}`,{focus:true});return{ok:true,page:`/cases/${target}`,display:'page'};
+    agentModule?.collapse({restoreOnHero:true});navigate(`/cases/${target}`,{focus:true});return{ok:true,page:`/cases/${target}`,display:'page'};
   }
   if(action==='show_experience'||action==='show_career'){
     const collection=action==='show_career'?site.career:site.experience;
     if(!collection.some(item=>item.id===target))throw new Error('Неизвестная карточка опыта');
-    agentModule?.collapse();if(location.pathname!=='/')navigate('/',{scroll:false});
+    agentModule?.collapse({restoreOnHero:true});if(location.pathname!=='/')navigate('/',{scroll:false});
     const card=document.getElementById(action==='show_career'?`career-${target}`:target);
     card.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});focusDestination(card);
     return{ok:true,[action==='show_career'?'career':'experience']:target,display:'page'};
@@ -157,7 +157,7 @@ export function executeSiteAction(action,target='',summary='',draft={}) {
   }
   // Updating an already visible draft does not scroll or animate the page again.
   if(!(action==='prepare_contact_request'&&state.section==='contact'&&location.pathname==='/')){
-    agentModule?.collapse();if(location.pathname!=='/')navigate('/',{scroll:false});
+    agentModule?.collapse({restoreOnHero:true});if(location.pathname!=='/')navigate('/',{scroll:false});
     const section=document.getElementById(target);section.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});focusDestination(section);
   }
   state.section=target;window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));

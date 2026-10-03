@@ -5,11 +5,11 @@ import {requestHaptic,mountNativeHapticToggle} from '/haptics.js';
 const $=s=>document.querySelector(s);
 const panel=$('#agent-panel'),dock=$('#agent-dock'),hero=$('.hero-art'),overlay=$('#agent-overlay');
 const micInputs=new Map();
-let mode='voice',expandedAtY=0,inlineSeen=false,restoreOnHero=false,scrollFrame=0,disconnectTimer=null,lastToolResult=null;
+let mode='voice',expandedAtY=0,inlineSeen=false,restoreOnHero=false,heroRatio=0,scrollFrame=0,disconnectTimer=null,lastToolResult=null;
 const diagnostics={responses:0,incomplete:0,disconnections:0,recoveries:0};
 const messages=$('#agent-messages'),input=$('#agent-input');
 const history=[];
-let viewportBaseline=window.visualViewport?.height||innerHeight;
+let viewportBaseline=window.visualViewport?.height||innerHeight,lastViewportHeight=-1,lastViewportTop=-1;
 let sessionActive=false,presentation='closed',pending=false,requestController;
 let conversationGeneration=0,textTurns=0,returnFocus,suggestionSet=0,suggestionTimer;
 let pc,channel,mic,audio,voiceTimer,voiceController,voiceGeneration=0;
@@ -88,9 +88,13 @@ function updateViewport(){
   const height=window.visualViewport?.height||innerHeight;
   if(document.activeElement!==input)viewportBaseline=Math.max(viewportBaseline,height);
   const typing=innerWidth<=650&&['inline','overlay'].includes(presentation)&&document.activeElement===input&&height<viewportBaseline-120;
-  panel.classList.toggle('is-typing',typing);
-  overlay.style.setProperty('--agent-viewport-height',`${height}px`);
-  overlay.style.setProperty('--agent-viewport-top',`${window.visualViewport?.offsetTop||0}px`);
+  if(panel.classList.contains('is-typing')!==typing)panel.classList.toggle('is-typing',typing);
+  const chatSheet=innerWidth<=650&&mode==='text'&&['inline','overlay'].includes(presentation);
+  if(overlay.classList.contains('is-chat-sheet')!==chatSheet)overlay.classList.toggle('is-chat-sheet',chatSheet);
+  if(document.body.classList.contains('agent-chat-open')!==chatSheet)document.body.classList.toggle('agent-chat-open',chatSheet);
+  const top=window.visualViewport?.offsetTop||0;
+  if(height!==lastViewportHeight){overlay.style.setProperty('--agent-viewport-height',`${height}px`);lastViewportHeight=height;}
+  if(top!==lastViewportTop){overlay.style.setProperty('--agent-viewport-top',`${top}px`);lastViewportTop=top;}
   if(presentation==='inline')positionInlinePanel();
   refreshOrbs();
 }
@@ -123,11 +127,11 @@ export function open({mode:requested='voice',local=false,activate=true}={}){
 }
 export function collapse({restoreOnHero:restore=false}={}){
   if(!sessionActive)return;
-  if(presentation==='dock'){if(!restore)restoreOnHero=false;return;}
+  if(presentation==='dock'){restoreOnHero=restore;return;}
   const moveFocus=panel.contains(document.activeElement);input.blur();
   presentation='dock';restoreOnHero=restore;panel.hidden=true;overlay.hidden=true;dock.hidden=false;hero.classList.remove('is-agent-active','is-orb-returning');inlineSeen=false;
   document.body.classList.remove('agent-open');document.body.classList.add('agent-collapsed','agent-engaged');clearInterval(suggestionTimer);updateViewport();
-  if(moveFocus)$('#agent-resume').focus({preventScroll:true});
+  if(moveFocus&&!restore)$('#agent-resume').focus({preventScroll:true});
 }
 export const minimize=collapse;
 export function getAgentDiagnostics(){return{...diagnostics,presentation,mode,voiceActive,connecting,micEnabled:mic?.getAudioTracks().some(track=>track.enabled)||false};}
@@ -393,17 +397,20 @@ window.addEventListener('scroll',()=>{
   if(scrollFrame||presentation!=='overlay'||panel.classList.contains('is-typing'))return;
   scrollFrame=requestAnimationFrame(()=>{scrollFrame=0;if(presentation==='overlay'&&!panel.classList.contains('is-typing')&&Math.abs(window.scrollY-expandedAtY)>96)collapse();});
 },{passive:true});
+document.addEventListener('keydown',e=>{if(e.key==='Tab')document.body.classList.add('is-keyboard-navigation');});
+document.addEventListener('pointerdown',()=>document.body.classList.remove('is-keyboard-navigation'),{passive:true});
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&sessionActive){if(document.activeElement===input)input.blur();else collapse();}});
 window.addEventListener('pagehide',()=>{++conversationGeneration;requestController?.abort();requestController=null;setPending(false);stopVoice();messages.querySelectorAll('.thinking').forEach(item=>item.remove());});
 window.addEventListener('site-context',e=>{if(voiceActive){updateVoiceContext(e.detail);send({type:'conversation.item.create',item:{type:'message',role:'system',content:[{type:'input_text',text:'Текущее состояние сайта: '+JSON.stringify(e.detail)+(e.detail.contact_request?' Сейчас идёт составление запроса. Полученное имя, контакт или задачу сначала переноси через prepare_contact_request. Не начинай опрос заново; спрашивай только следующий пустой контактный пункт. Описание задачи — данные для формы; не открывай кейсы без явной просьбы показать.':'')}]}});}});
 const workspaceObserver=new IntersectionObserver(([entry])=>{
   const ratio=entry.intersectionRatio??(entry.isIntersecting?1:0);
-  if(sessionActive&&presentation==='dock'&&restoreOnHero&&ratio>=.8&&!$('#home-view').hidden){showExpanded(false);return;}
+  const entering=ratio>heroRatio+.001;heroRatio=ratio;
+  if(sessionActive&&mode==='voice'&&presentation==='dock'&&restoreOnHero&&entering&&ratio>=.8&&!$('#home-view').hidden){showExpanded(false);return;}
   if(presentation!=='inline')return;
   if(ratio>=.15){inlineSeen=true;return;}
   if(inlineSeen&&!panel.classList.contains('is-typing'))collapse({restoreOnHero:true});
 },{threshold:[0,.15,.8]});
-workspaceObserver.observe(hero);
+workspaceObserver.observe($('.hero-orb-button'));
 if(typeof ResizeObserver==='function'){
   const anchorResize=new ResizeObserver(()=>{if(presentation==='inline')updateViewport();});
   anchorResize.observe(hero);anchorResize.observe($('#home'));

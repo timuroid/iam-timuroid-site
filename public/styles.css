@@ -188,3 +188,21 @@ h1[tabindex="-1"]:focus,h2[tabindex="-1"]:focus,h3[tabindex="-1"]:focus,#agent-t
 .interview-fields summary span{display:block;font-size:12px;color:#b7b8ba;margin-left:16px}
 .interview-fields>label{display:block;margin-top:20px}
 .interview-fields textarea{display:block;width:100%;margin-top:10px}
+
+/* Agent focus follows keyboard navigation; touch does not leave a focus frame. */
+.agent-resume:focus-visible,.agent-icon-button:focus-visible,.agent-voice-toggle:focus-visible,.agent-to-text:focus-visible,.agent-write:focus-visible,.agent-send:focus-visible,.agent-suggestions button:focus-visible,.native-haptic-control:has(input:focus-visible){outline:none}
+body.is-keyboard-navigation .agent-resume:focus-visible,body.is-keyboard-navigation .agent-icon-button:focus-visible,body.is-keyboard-navigation .agent-voice-toggle:focus-visible,body.is-keyboard-navigation .agent-to-text:focus-visible,body.is-keyboard-navigation .agent-write:focus-visible,body.is-keyboard-navigation .agent-send:focus-visible,body.is-keyboard-navigation .agent-suggestions button:focus-visible,body.is-keyboard-navigation .native-haptic-control:has(input:focus-visible){outline:2px solid #5c738c;outline-offset:3px}
+.agent-voice-toggle[aria-pressed=true],.agent-dock .agent-voice-toggle[aria-pressed=true]{background:var(--navy);color:var(--bg)}
+.agent-dock[data-mic=listening] .agent-voice-toggle:after{content:none}
+.agent-dock[data-mic=listening] .agent-voice-toggle svg{animation:micConnecting 1.8s ease-in-out infinite}
+.agent-composer form:focus-within{border-color:#8798a7;background:#f1ece3}
+@media(max-width:650px){
+  body.agent-chat-open{overflow:hidden}
+  #agent-overlay.is-chat-sheet{position:fixed;z-index:35;inset:0;width:100%;height:100%;max-width:none;max-height:none;padding:0;border-radius:0;box-shadow:none;background:var(--bg);animation:none;align-items:stretch}
+  #agent-overlay.is-chat-sheet .agent-focus-orb{display:none}
+  #agent-overlay.is-chat-sheet .agent-workspace{position:absolute;top:var(--agent-viewport-top,0px);left:0;right:0;bottom:auto;display:flex;flex-direction:column;width:100%;height:var(--agent-viewport-height,100dvh);max-height:none;max-width:none;min-height:0;margin:0;padding:18px 20px max(12px,env(safe-area-inset-bottom));background:var(--bg);overflow:hidden;isolation:isolate;animation:none}
+  #agent-overlay.is-chat-sheet .agent-workspace.is-typing{padding-bottom:12px}
+  #agent-overlay.is-chat-sheet .agent-messages{flex:1 1 auto;max-height:none;min-height:0;padding-bottom:12px}
+  #agent-overlay.is-chat-sheet .agent-suggestions{margin-top:auto}
+  #agent-overlay.is-chat-sheet .agent-composer{padding-top:0}
+}
