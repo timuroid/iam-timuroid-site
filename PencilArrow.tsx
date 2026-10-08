@@ -37,7 +37,7 @@ export default function PencilArrow({
           <feComposite in="distorted" in2="grain" operator="in" />
         </filter>
       </defs>
-      <g filter={`url(#${filterId})`} stroke="currentColor" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round">
+      <g filter={`url(#${filterId})`} stroke="currentColor" strokeWidth={3.3} strokeLinecap="round" strokeLinejoin="round">
         <path
           d="M270 450 C220 414 128 342 111 277 C92 204 107 145 159 100 C193 71 226 55 262 43"
           pathLength={100}
