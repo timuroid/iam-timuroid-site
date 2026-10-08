@@ -9,6 +9,7 @@
 | `public/intro.js` | Последовательность появления первого экрана и её пропуск |
 | `public/agent.js` | Чат, WebRTC, состояния микрофона и очередь ответов |
 | `public/network-orb.js`, `orb.js`, `orb-tokens.js` | Белый 3D-граф в жидком navy-силуэте, звук и живые фрагменты текста |
+| `public/orb-options.html`, `orb-options.css`, `orb-options.js` | Отдельное анимированное превью трёх вариантов появления шара; главная его не загружает |
 | `public/admin.*`, `server/admin.mjs` | Панель владельца и закрытый API |
 | `content/site.json` | Публичные тексты и факты |
 | `content/agent-knowledge.json` | Расширенный контекст разделов и каждого проекта |

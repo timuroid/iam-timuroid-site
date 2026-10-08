@@ -9,7 +9,7 @@
     "build": "node scripts/build.mjs",
     "predev": "npm run build",
     "dev": "node --env-file-if-exists=.env scripts/dev.mjs",
-    "check": "node --check public/app.js && node --check public/intro.js && node --check public/agent.js && node --check public/orb.js && node --check public/network-orb.js && node --check public/orb-tokens.js && node --check public/admin.js && node --check server/admin.mjs && node --check public/haptics.js && node --check public/dictation.js && node --check server/worker.mjs && node --check server/node.mjs && node --check server/media.mjs && node --check scripts/build.mjs && node --check scripts/dev.mjs && node --check server/conversations.mjs && node --check public/conversation-log.js",
+    "check": "node --check public/app.js && node --check public/intro.js && node --check public/orb-options.js && node --check public/agent.js && node --check public/orb.js && node --check public/network-orb.js && node --check public/orb-tokens.js && node --check public/admin.js && node --check server/admin.mjs && node --check public/haptics.js && node --check public/dictation.js && node --check server/worker.mjs && node --check server/node.mjs && node --check server/media.mjs && node --check scripts/build.mjs && node --check scripts/dev.mjs && node --check server/conversations.mjs && node --check public/conversation-log.js",
     "prestart": "npm run build",
     "start": "node --env-file-if-exists=.env server/node.mjs",
     "check:agent": "node scripts/check-agent-state.cjs && node scripts/check-agent-config.mjs && node scripts/check-orb-state.cjs",
