@@ -14,9 +14,9 @@
     if(location.pathname==='/'&&!location.hash&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
       document.documentElement.classList.add('intro-pending');
       window.__introFallback=setTimeout(()=>{
-        document.documentElement.classList.remove('intro-pending','intro-reveal','intro-hint');
+        document.documentElement.classList.remove('intro-pending','intro-reveal','intro-name','intro-role-one','intro-role-two','intro-personal','intro-hint','intro-cta');
         window.dispatchEvent(new Event('site-intro-timeout'));
-      },6500);
+      },8500);
     }
   </script>
   <script type="module" src="/app.js"></script>
@@ -36,16 +36,16 @@
       <section class="hero section-shell" id="home">
         <div class="hero-copy">
           <h1>Привет, я <span class="serif-word">Тимур.</span></h1>
-          <p class="hero-description">Руковожу AI-разработкой.<br>Исследую и преподаю.</p>
+          <p class="hero-description"><span class="hero-role-one">Руковожу AI-разработкой.</span><span class="hero-role-two">Исследую и преподаю.</span></p>
           <p class="hero-personal">Пробую новые инструменты и превращаю их в рабочие решения.</p>
         </div>
         <div class="hero-art">
           <button class="hero-orb-button" data-open-agent aria-label="Поговорить с ИИ-агентом — включить микрофон"><canvas class="orb-image live-orb" data-live-orb="hero" width="560" height="560" aria-hidden="true"></canvas></button>
 
           <div class="agent-home-space" id="agent-home-space">
-          <div class="agent-entry-actions"><svg class="agent-invite-arrow" viewBox="0 0 82 66" fill="none" aria-hidden="true"><path class="arrow-stem" pathLength="100" d="M8 58C18 44 36 45 44 30C50 18 59 11 74 9"/><path class="arrow-head" pathLength="100" d="M62 5L74 9L64 19"/></svg><button class="agent-invite" data-open-agent>Спросить моего ИИ-агента</button><button class="agent-write" data-open-agent data-agent-mode="text" type="button">Написать</button></div>
+          <div class="agent-entry-actions"><svg class="agent-invite-arrow" viewBox="0 0 120 130" fill="none" aria-hidden="true"><path class="arrow-stem" pathLength="100" d="M65 127C30 111 16 92 17 65C18 41 61 23 104 18"/><path class="arrow-head" pathLength="100" d="M79 11L104 18L85 43"/></svg><button class="agent-invite" data-open-agent>Спросить моего ИИ-агента</button><button class="agent-write" data-open-agent data-agent-mode="text" type="button">Написать</button></div>
           <p class="orb-caption">Ответит на вопросы обо мне и проектах.</p>
-          <div class="hero-actions"><a class="button primary" href="/#cases">Посмотреть проекты</a><a class="text-link" href="/#experience">Ближе познакомиться</a></div>
+          <div class="hero-actions"><a class="button primary" href="/#cases" data-label="Посмотреть проекты">Посмотреть проекты</a><a class="text-link" href="/#experience">Ближе познакомиться</a></div>
           </div>
         </div>
       </section>

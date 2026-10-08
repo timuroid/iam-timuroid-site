@@ -8,7 +8,7 @@ export function initHeroIntro(){
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
   if(!orb||!skip||reduced.matches){
     clearTimeout(window.__introFallback);
-    root.classList.remove('intro-pending','intro-reveal','intro-hint');
+    root.classList.remove('intro-pending','intro-reveal','intro-name','intro-role-one','intro-role-two','intro-personal','intro-hint','intro-cta');
     setOrbIntro(1);
     return;
   }
@@ -24,7 +24,7 @@ export function initHeroIntro(){
     clearTimeout(window.__introFallback);
     orb.style.transition='none';
     orb.style.transform='none';
-    root.classList.remove('intro-pending','intro-reveal','intro-hint');
+    root.classList.remove('intro-pending','intro-reveal','intro-name','intro-role-one','intro-role-two','intro-personal','intro-hint','intro-cta');
     setOrbIntro(1);refreshOrbs();
     requestAnimationFrame(()=>{orb.style.transition='';orb.style.transform='';});
     skip.removeEventListener('click',finish);
@@ -65,23 +65,28 @@ export function initHeroIntro(){
     const rect=orb.getBoundingClientRect();
     if(!rect.width||!rect.height){finish();return;}
     const dx=innerWidth/2-(rect.left+rect.width/2);
-    const dy=innerHeight*.41-(rect.top+rect.height/2);
+    const dy=innerHeight*.39-(rect.top+rect.height/2);
     const initial=`translate3d(${dx}px,${dy}px,0) scale(.86)`;
     orb.style.transform=initial;
     refreshOrbs();
     const started=performance.now();
     function form(now){
       if(stopped)return;
-      const progress=Math.min(1,(now-started)/1280);
+      const progress=Math.min(1,(now-started)/1650);
       setOrbIntro(progress*progress*(3-2*progress));
       if(progress<1){frame=requestAnimationFrame(form);return;}
       setOrbIntro(1);
       root.classList.add('intro-reveal');
-      orb.style.transition='transform 960ms cubic-bezier(.19,.82,.21,1)';
+      orb.style.transition='transform 1350ms cubic-bezier(.19,.82,.21,1)';
       orb.style.transform='none';
       refreshOrbs();
-      later(()=>root.classList.add('intro-hint'),560);
-      later(finish,1680);
+      later(()=>root.classList.add('intro-name'),220);
+      later(()=>root.classList.add('intro-role-one'),950);
+      later(()=>root.classList.add('intro-role-two'),1430);
+      later(()=>root.classList.add('intro-personal'),1850);
+      later(()=>root.classList.add('intro-hint'),2290);
+      later(()=>root.classList.add('intro-cta'),2670);
+      later(finish,4100);
     }
     frame=requestAnimationFrame(form);
   }
