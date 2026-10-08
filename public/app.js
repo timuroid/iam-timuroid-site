@@ -1,5 +1,6 @@
 import {initOrbs,refreshOrbs,activateOrb,setOrbIntro} from '/orb.js';
 import {initHeroIntro} from '/intro.js';
+import {initPencilArrow} from '/pencil-arrow.js';
 import {requestHaptic} from '/haptics.js';
 const site = window.__SITE;
 const $ = (s, root = document) => root.querySelector(s);
@@ -104,6 +105,7 @@ $('.menu-toggle').addEventListener('click',e=>{requestHaptic(e,10);const open=$(
 renderRoute({scroll:Boolean(location.hash)});
 if(document.documentElement.classList.contains('intro-pending'))setOrbIntro(0);
 initOrbs();
+initPencilArrow();
 initHeroIntro();
 
 const heroObserver=new IntersectionObserver(([e])=>document.body.classList.toggle('hero-visible',e.isIntersecting&&!$('#home-view').hidden),{threshold:.25});heroObserver.observe($('#home'));
