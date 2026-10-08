@@ -104,17 +104,25 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
     p.x=c+dx*factor;p.y=c+dy*factor;
   }
   const growth=opening*opening*(3-2*opening);
-  if(opening<.92&&!reduced){
+  if(opening<.97&&!reduced){
+    // The opening follows the chosen "living droplet" sketch: four uneven,
+    // staggered arrivals rather than a symmetric ring around the surface.
+    const arrivals=[
+      {x:81,y:121,r:8,start:.02,end:.72},
+      {x:230,y:188,r:11,start:.13,end:.79},
+      {x:111,y:238,r:6,start:.27,end:.87},
+      {x:197,y:83,r:7,start:.39,end:.96}
+    ];
     ctx.save();
-    for(let i=0;i<7;i++){
-      const angle=i*tau/7+.23*Math.sin(time*.8+i*1.7);
-      const boundary=skinRadius(angle)*growth;
-      const gap=size*(.13+.035*Math.sin(i*2.1))*(1-opening);
-      const distance=boundary+gap;
-      const radius=size*(.017+.008*(1+Math.sin(i*2.4)))*(1-.56*opening);
-      const opacity=Math.min(1,opening*9)*Math.max(0,1-opening/.92);
-      ctx.globalAlpha=opacity;
-      ctx.beginPath();ctx.ellipse(c+Math.cos(angle)*distance,c+Math.sin(angle)*distance,radius,radius*(.8+.25*Math.sin(i)),angle,0,tau);
+    for(const drop of arrivals){
+      const step=Math.max(0,Math.min(1,(opening-drop.start)/(drop.end-drop.start)));
+      if(!step||step>=1)continue;
+      const travel=step*step*(3-2*step);
+      const x=size*(drop.x+(160-drop.x)*travel)/320;
+      const y=size*(drop.y+(160-drop.y)*travel)/320;
+      const radius=size*drop.r*(1-.35*step)/320;
+      ctx.globalAlpha=Math.min(1,step*8)*(1-step*.75);
+      ctx.beginPath();ctx.ellipse(x,y,radius,radius*(.75+.2*Math.sin(time+drop.x)),step*.7,0,tau);
       ctx.fillStyle=backdrop.gradient;ctx.fill();
     }
     ctx.restore();
@@ -122,8 +130,10 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
   ctx.save();ctx.beginPath();
   for(let i=0;i<=128;i++){
     const angle=i*tau/128;
-    const ripple=1+(1-opening)*.09*Math.sin(angle*5+time*2.1);
-    const radius=skinRadius(angle)*growth*ripple,x=c+Math.cos(angle)*radius,y=c+Math.sin(angle)*radius;
+    const ripple=1+(1-opening)*(.16*Math.sin(angle*3+time*.8)+.08*Math.sin(angle*5-time*.6)+.035*Math.sin(angle*8+1.7));
+    const radius=skinRadius(angle)*growth*ripple;
+    const x=c-size*.05*(1-growth)+Math.cos(angle)*radius;
+    const y=c+size*.038*(1-growth)+Math.sin(angle)*radius;
     if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
   }
   ctx.closePath();ctx.fillStyle=backdrop.gradient;ctx.fill();ctx.clip();

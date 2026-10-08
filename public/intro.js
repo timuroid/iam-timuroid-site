@@ -72,8 +72,8 @@ export function initHeroIntro(){
     const started=performance.now();
     function form(now){
       if(stopped)return;
-      const progress=Math.min(1,(now-started)/1650);
-      setOrbIntro(progress*progress*(3-2*progress));
+      const progress=Math.min(1,(now-started)/2500);
+      setOrbIntro(progress);
       if(progress<1){frame=requestAnimationFrame(form);return;}
       setOrbIntro(1);
       root.classList.add('intro-reveal');
