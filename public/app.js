@@ -134,7 +134,14 @@ export function executeSiteAction(action,target='',summary='',draft={}) {
     window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));
     return{ok:true,draftCleared:field,contact_request:false,scope:'draft'};
   }
-  if(!['show_section','show_case','show_experience','show_career','begin_contact_request','open_contact','prepare_contact_request'].includes(action))throw new Error('Неизвестное действие');
+  if(!['show_section','show_case','show_case_part','show_privacy','show_experience','show_career','begin_contact_request','open_contact','prepare_contact_request'].includes(action))throw new Error('Неизвестное действие');
+  if(action==='show_privacy'){agentModule?.collapse({restoreOnHero:true});navigate('/privacy',{focus:true});return{ok:true,page:'/privacy',display:'page'};}
+  if(action==='show_case_part'){
+    const [caseId,partId]=String(target).split(':');
+    if(!site.cases.some(c=>c.id===caseId)||!['task','contribution','solution','result','limitations'].includes(partId))throw new Error('Неизвестная часть кейса');
+    agentModule?.collapse({restoreOnHero:true});navigate(`/cases/${caseId}#${partId}`,{focus:true});
+    return{ok:true,page:`/cases/${caseId}`,part:partId,display:'page'};
+  }
   if(action==='show_case'){
     const c=site.cases.find(c=>c.id===target);if(!c)throw new Error('Неизвестный кейс');
     agentModule?.collapse({restoreOnHero:true});navigate(`/cases/${target}`,{focus:true});return{ok:true,page:`/cases/${target}`,display:'page'};
@@ -163,7 +170,7 @@ export function executeSiteAction(action,target='',summary='',draft={}) {
   // Updating an already visible draft does not scroll or animate the page again.
   if(!(action==='prepare_contact_request'&&state.section==='contact'&&location.pathname==='/')){
     agentModule?.collapse({restoreOnHero:true});if(location.pathname!=='/')navigate('/',{scroll:false});
-    const section=document.getElementById(target);section.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});focusDestination(section);
+    const section=document.getElementById(target);if(target==='home')window.scrollTo({top:0,behavior:reduced.matches?'instant':'smooth'});else section.scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});focusDestination(section);
   }
   state.section=target;window.dispatchEvent(new CustomEvent('site-context',{detail:getContext()}));
   return{ok:true,section:target,display:'page',draftPrepared:action==='prepare_contact_request',...contactContext()};
@@ -198,7 +205,7 @@ form.addEventListener('submit',async e=>{
 
 if(document.modelContext?.registerTool){
   const lifecycle=new AbortController();
-  const tool={name:'navigate_timuroid',title:'Показать информацию о Тимуре',description:'Открыть раздел, кейс или карточку опыта на сайте Тимура. Не отправляет сообщения.',inputSchema:{type:'object',properties:{action:{type:'string',enum:['show_section','show_case','show_experience','show_career','open_contact']},target:{type:'string'}},required:['action'],additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:false},execute(input){if(!input||!['show_section','show_case','show_experience','show_career','open_contact'].includes(input.action))throw new Error('Недопустимое действие');return executeSiteAction(input.action,input.target||'');}};
+  const tool={name:'navigate_timuroid',title:'Показать информацию о Тимуре',description:'Открыть раздел, кейс или карточку опыта на сайте Тимура. Не отправляет сообщения.',inputSchema:{type:'object',properties:{action:{type:'string',enum:['show_section','show_case','show_case_part','show_privacy','show_experience','show_career','open_contact']},target:{type:'string'}},required:['action'],additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:false},execute(input){if(!input||!['show_section','show_case','show_case_part','show_privacy','show_experience','show_career','open_contact'].includes(input.action))throw new Error('Недопустимое действие');return executeSiteAction(input.action,input.target||'');}};
   try{Promise.resolve(document.modelContext.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{});}catch{}
   window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});
 }

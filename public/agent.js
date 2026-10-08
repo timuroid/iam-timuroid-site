@@ -18,7 +18,7 @@ let voiceActive=false,connecting=false,inputSpeaking=false,awaitingReply=false;
 let responseInFlight=false,activeResponseId=null,outputPlaying=false,outputExpected=false,playbackResponseId=null;
 let continuationPending=false,toolFailed=false,audioContext=null,micMeter=null,outputMeter=null,baseVoiceInstructions='',sentVoiceInstructions='';
 const pendingVoiceTurns=new Set(),seenVoiceTurns=new Set();
-let queuedContinuation=null,voiceContextVersion=0;
+let queuedContinuation=null,voiceContextVersion=0,closingAfterFarewell=false,awaitingFarewell=false;
 const meterGraphs=[],audioResponses=new Set(),finishedAudioResponses=new Set();
 const suggestionGroups=[
   [['Покажи проекты Тимура','Проекты'],['Как устроен проект со сторис?','Кейс со сторис'],['Как Тимур использует ИИ каждый день?','ИИ в работе']],
@@ -137,7 +137,7 @@ export function collapse({restoreOnHero:restore=false}={}){
 export const minimize=collapse;
 export function getAgentDiagnostics(){return{...diagnostics,presentation,mode,voiceActive,connecting,micEnabled:mic?.getAudioTracks().some(track=>track.enabled)||false};}
 function resetConversation(){
-  flushVoiceArchive();endConversation();++conversationGeneration;requestController?.abort();requestController=null;pending=false;stopVoice();
+  closingAfterFarewell=false;awaitingFarewell=false;flushVoiceArchive();endConversation();++conversationGeneration;requestController?.abort();requestController=null;pending=false;stopVoice();
   history.length=0;textTurns=0;messages.replaceChildren();input.value='';$('#voice-caption').textContent='';error('');panel.classList.remove('has-conversation');
 }
 function close(){
@@ -230,12 +230,19 @@ async function updateVoiceContext(context){
     if(instructions!==sentVoiceInstructions){sentVoiceInstructions=instructions;send({type:'session.update',session:{type:'realtime',instructions}});}
   }catch{/* The previous instructions remain valid during a transient update error. */}
 }
+function finishFarewellIfReady(){
+  if(closingAfterFarewell&&!awaitingFarewell&&!queuedContinuation&&!assistantBusy()&&!audioResponses.size)close();
+}
 function requestQueuedVoiceResponse(){
+  if(closingAfterFarewell&&awaitingFarewell&&queuedContinuation){
+    // Ignore any further queued speech after an explicit goodbye.
+    pendingVoiceTurns.clear();
+  }
   if(!voiceActive||disconnectTimer||inputSpeaking||assistantBusy()||channel?.readyState!=='open')return;
-  if(pendingVoiceTurns.size){
+  if(pendingVoiceTurns.size&&!closingAfterFarewell){
     pendingVoiceTurns.clear();queuedContinuation=null;awaitingReply=true;syncVoice();send({type:'response.create'});
   }else if(queuedContinuation){
-    const instructions=queuedContinuation;queuedContinuation=null;awaitingReply=true;syncVoice();send({type:'response.create',response:{instructions}});
+    const instructions=queuedContinuation;queuedContinuation=null;awaitingFarewell=false;awaitingReply=true;syncVoice();send({type:'response.create',response:{instructions}});
   }
 }
 function send(event){if(channel?.readyState==='open')channel.send(JSON.stringify(event));}
@@ -350,7 +357,7 @@ function onVoiceEvent(event){
     const finishedId=responseId||playbackResponseId;
     if(finishedId){audioResponses.delete(finishedId);finishedAudioResponses.add(finishedId);}
     if(finishedId===playbackResponseId){playbackResponseId=null;outputPlaying=false;}
-    outputExpected=audioResponses.size>0&&!outputPlaying;syncVoice();requestQueuedVoiceResponse();
+    outputExpected=audioResponses.size>0&&!outputPlaying;syncVoice();requestQueuedVoiceResponse();finishFarewellIfReady();
   }
   if(data.type==='conversation.item.input_audio_transcription.completed'&&data.transcript){feedOrbText(data.transcript,{role:'user',id:data.item_id||'input',complete:true});message('user',data.transcript,'voice:user:'+(data.item_id||'input'));history.push({role:'user',content:data.transcript});}
   if(['response.audio_transcript.done','response.output_audio_transcript.done'].includes(data.type)&&data.transcript){
@@ -360,7 +367,7 @@ function onVoiceEvent(event){
   if(data.type==='response.function_call_arguments.done'){
     if(responseId&&responseId!==activeResponseId)return;
     let result;
-    try{const args=JSON.parse(data.arguments);result=executeSiteAction(data.name,args.section_id||args.case_id||args.experience_id||args.career_id||args.field||'',args.summary||'',{name:args.name,contact:args.contact,process:args.process,goal:args.goal,constraints:args.constraints});}
+    try{const args=JSON.parse(data.arguments);if(data.name==='end_conversation'){closingAfterFarewell=true;result={ok:true,end_conversation:true};}else{const target=data.name==='show_case_part'?`${args.case_id}:${args.part_id}`:args.section_id||args.case_id||args.experience_id||args.career_id||args.field||'';result=executeSiteAction(data.name,target,args.summary||'',{name:args.name,contact:args.contact,process:args.process,goal:args.goal,constraints:args.constraints});}}
     catch{result={ok:false,error:'Не удалось открыть информацию. Выберите раздел в меню.'};}
     recordConversation('tool',JSON.stringify({name:data.name,arguments:data.arguments,result}),{event_id:'tool:'+data.call_id,channel:'voice',model:voiceArchiveModel});
     send({type:'conversation.item.create',item:{type:'function_call_output',call_id:data.call_id,output:JSON.stringify(result)}});
@@ -376,10 +383,10 @@ function onVoiceEvent(event){
     if(continuationPending){
       continuationPending=false;const failed=toolFailed;toolFailed=false;
       const prompt=lastToolResult?.contact_missing?.length?{name:'Как вас зовут?',contact:'Как с вами связаться?',message:'Что хотите обсудить?',process:'Как вы решаете эту задачу сейчас?',goal:'Какого результата хотелось бы добиться?',constraints:'Есть сроки, ограничения или важные условия? Можно пропустить.'}[lastToolResult.contact_missing[0]]:'Черновик заполнен. Проверьте форму, отметьте согласие и нажмите «Отправить сообщение».';
-      const next=lastToolResult?.draftCleared?'Подтверди, что указанные поля формы очищены. Не заполняй их из истории и не начинай новый контактный опрос. Не утверждай, что удалены ранее отправленные заявки.':lastToolResult?.contact_request?`Произнеси только эту фразу дословно: ${prompt} Не вызывай инструменты и ничего не добавляй.`:'Подтверди действие одним коротким предложением. Дай посетителю спокойно читать.';
-      queuedContinuation=failed?'Коротко сообщи, что действие не получилось.':next;
+      const next=lastToolResult?.end_conversation?'Произнеси короткое естественное прощание одним предложением. Не вызывай инструменты и не задавай новых вопросов.':lastToolResult?.draftCleared?'Подтверди, что указанные поля формы очищены. Не заполняй их из истории и не начинай новый контактный опрос. Не утверждай, что удалены ранее отправленные заявки.':lastToolResult?.contact_request?`Произнеси только эту фразу дословно: ${prompt} Не вызывай инструменты и ничего не добавляй.`:'Подтверди действие одним коротким предложением. Дай посетителю спокойно читать.';
+      queuedContinuation=failed?'Коротко сообщи, что действие не получилось.':next;awaitingFarewell=Boolean(lastToolResult?.end_conversation);
     }
-    syncVoice();requestQueuedVoiceResponse();
+    syncVoice();requestQueuedVoiceResponse();finishFarewellIfReady();
   }
   if(data.type==='error'){
     if(['conversation_already_has_active_response','response_cancel_not_active'].includes(data.error?.code))return;
@@ -390,7 +397,7 @@ function onVoiceEvent(event){
 function stopVoice(){
   clearOrbText();
   ++voiceGeneration;++voiceContextVersion;pendingVoiceTurns.clear();seenVoiceTurns.clear();queuedContinuation=null;clearTimeout(disconnectTimer);disconnectTimer=null;voiceController?.abort();voiceController=null;clearTimeout(voiceTimer);voiceTimer=null;
-  voiceActive=false;connecting=false;baseVoiceInstructions='';sentVoiceInstructions='';continuationPending=false;toolFailed=false;inputSpeaking=false;awaitingReply=false;
+  closingAfterFarewell=false;awaitingFarewell=false;voiceActive=false;connecting=false;baseVoiceInstructions='';sentVoiceInstructions='';continuationPending=false;toolFailed=false;inputSpeaking=false;awaitingReply=false;
   responseInFlight=false;activeResponseId=null;outputPlaying=false;outputExpected=false;playbackResponseId=null;audioResponses.clear();finishedAudioResponses.clear();
   setOrbAudioReader(null);setOrbLevel(0);
   for(const meter of meterGraphs.splice(0)){meter.source.disconnect();meter.analyser.disconnect();}micMeter=null;outputMeter=null;

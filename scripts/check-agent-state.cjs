@@ -327,6 +327,29 @@ async function check(name,run){try{await run();results.push({name,ok:true});}cat
     expect(app.actor.getContext().contact_draft.goal==='Сводка'&&app.actor.interviewTranscript().length===1,'extended interview draft absent');
     app.actor.executeSiteAction('clear_contact_request','all');expect(app.actor.interviewTranscript().length===0&&['process','goal','constraints'].every(key=>!h.nodes.get('#contact-form [name='+key+']').value),'deleted interview data remains');
   });
+  await check('voice opens case result and privacy without ending the conversation',async()=>{
+    const h=harness(),app=installActor(h);await h.connect();const caseId=app.site.cases[0].id;
+    h.event('response.created',{response:{id:'part1'}});
+    h.event('response.function_call_arguments.done',{response_id:'part1',name:'show_case_part',call_id:'part-call',arguments:JSON.stringify({case_id:caseId,part_id:'result'})});
+    expect(app.location.pathname===`/cases/${caseId}`&&app.location.hash==='#result','case subsection did not open');
+    expect(h.api.state().voiceActive&&h.api.state().presentation==='dock','case subsection ended voice');
+    expect(h.logs.sent.some(e=>e.type==='conversation.item.create'&&e.item.call_id==='part-call'&&JSON.parse(e.item.output).part==='result'),'case subsection tool output missing');
+    app.actor.executeSiteAction('show_privacy');expect(app.location.pathname==='/privacy'&&h.api.state().voiceActive,'privacy navigation lost voice');
+    app.actor.executeSiteAction('show_section','home');expect(app.location.pathname==='/'&&h.win.scrollY===0,'top command failed');
+  });
+  await check('explicit goodbye waits for farewell audio then closes microphone and session',async()=>{
+    const h=harness();const {track,peer}=await h.connect();
+    h.event('response.created',{response:{id:'goodbye-tool'}});
+    h.event('response.function_call_arguments.done',{response_id:'goodbye-tool',name:'end_conversation',call_id:'bye-call',arguments:'{}'});
+    h.event('response.done',{response:{id:'goodbye-tool',status:'completed',output:[]}});
+    expect(h.api.state().voiceActive&&h.logs.sent.some(e=>e.type==='response.create'&&e.response?.instructions.includes('прощание')),'farewell response was not queued');
+    h.event('response.created',{response:{id:'goodbye-audio'}});
+    h.event('output_audio_buffer.started',{response_id:'goodbye-audio'});
+    h.event('response.done',{response:audioResponse('goodbye-audio')});
+    expect(!track.stopped&&h.api.state().sessionActive,'closed during farewell playback');
+    h.event('output_audio_buffer.stopped',{response_id:'goodbye-audio'});
+    expect(track.stopped&&peer.closed&&!h.api.state().sessionActive&&h.api.state().presentation==='closed','goodbye retained mic or session');
+  });
   await check('contact rejects long field atomically and preserves previous draft',async()=>{
     const h=harness(),app=installActor(h);app.actor.executeSiteAction('prepare_contact_request','','Задача',{name:'Тест',contact:'@example'});
     let rejected=false;try{app.actor.executeSiteAction('prepare_contact_request','','',{name:'Новый',contact:'x'.repeat(181)});}catch{rejected=true;}
