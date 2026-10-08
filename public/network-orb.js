@@ -24,8 +24,10 @@ export function createNetwork(count=186){
   for(let i=4;i<count;i+=17)edges.push({a:i,b:(i+Math.floor(count*.49))%count,phase:(i*.31)%1,inner:true});
   return {nodes,edges};
 }
-export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,waveform=null,liveTokens=null,impulse=0,pointer=[0,0],reduced=false,state='idle'}={}){
+export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,waveform=null,liveTokens=null,impulse=0,pointer=[0,0],reduced=false,state='idle',reveal=1}={}){
   ctx.clearRect(0,0,size,size);
+  const opening=Math.max(0,Math.min(1,Number.isFinite(reveal)?reveal:1));
+  if(opening<=.003)return;
   let backdrop=backdrops.get(ctx);
   if(!backdrop||backdrop.size!==size){
     const gradient=ctx.createLinearGradient(size*.2,size*.16,size*.8,size*.85);
@@ -101,12 +103,32 @@ export function paintNetwork(ctx,size,network,{time=0,energy=0,speechActivity,wa
     const factor=distance?Math.min(1,(radius-size*.009)/distance):1;
     p.x=c+dx*factor;p.y=c+dy*factor;
   }
+  const growth=opening*opening*(3-2*opening);
+  if(opening<.92&&!reduced){
+    ctx.save();
+    for(let i=0;i<7;i++){
+      const angle=i*tau/7+.23*Math.sin(time*.8+i*1.7);
+      const boundary=skinRadius(angle)*growth;
+      const gap=size*(.13+.035*Math.sin(i*2.1))*(1-opening);
+      const distance=boundary+gap;
+      const radius=size*(.017+.008*(1+Math.sin(i*2.4)))*(1-.56*opening);
+      const opacity=Math.min(1,opening*9)*Math.max(0,1-opening/.92);
+      ctx.globalAlpha=opacity;
+      ctx.beginPath();ctx.ellipse(c+Math.cos(angle)*distance,c+Math.sin(angle)*distance,radius,radius*(.8+.25*Math.sin(i)),angle,0,tau);
+      ctx.fillStyle=backdrop.gradient;ctx.fill();
+    }
+    ctx.restore();
+  }
   ctx.save();ctx.beginPath();
   for(let i=0;i<=128;i++){
-    const angle=i*tau/128,radius=skinRadius(angle),x=c+Math.cos(angle)*radius,y=c+Math.sin(angle)*radius;
+    const angle=i*tau/128;
+    const ripple=1+(1-opening)*.09*Math.sin(angle*5+time*2.1);
+    const radius=skinRadius(angle)*growth*ripple,x=c+Math.cos(angle)*radius,y=c+Math.sin(angle)*radius;
     if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
   }
   ctx.closePath();ctx.fillStyle=backdrop.gradient;ctx.fill();ctx.clip();
+  if(opening<=.24){ctx.restore();return;}
+  ctx.globalAlpha=Math.min(1,Math.max(0,(opening-.24)/.64));
   // Bin each edge once. Reuse all arrays rather than allocating projection
   // objects and testing every edge ten times per animation frame.
   for(const bucket of bins)bucket.length=0;

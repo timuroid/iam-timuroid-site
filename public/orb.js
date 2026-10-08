@@ -8,7 +8,7 @@ function makeEngine(){const surface=document.createElement('canvas');return{surf
 const modes=['idle','thinking','listening','speaking','error'];
 const reduced=matchMedia('(prefers-reduced-motion: reduce)');
 const coarse=matchMedia('(pointer: coarse)');
-let mode='idle',level=0,phase=1.8,energy=0,speechActivity=0,speed=.93,tapDrive=0,impulse=0,flash=0;
+let mode='idle',level=0,phase=1.8,energy=0,speechActivity=0,speed=.93,tapDrive=0,impulse=0,flash=0,introReveal=1;
 let pointerScreen=null,smoothPointer=[0,0];
 let frame=0,last=0,drawCount=0,settleTimer=0,paintCost=0,fastFrames=true;
 let engine,targets=[],initialized=false,audioReader=null,audioWaveform=null,targetCache=[],targetsDirty=true,visibilityReads=0;
@@ -48,7 +48,8 @@ function render(now,force=false){
   const compact=mobile();
   if(paintCost>8)fastFrames=false;else if(paintCost<4)fastFrames=true;
   const responding=tapDrive>.02||impulse>.02||mode==='speaking'||mode==='listening';
-  const interval=responding?(fastFrames?16:33):(compact?50:32);
+  const presenting=introReveal<.999;
+  const interval=presenting?(compact||!fastFrames?33:16):responding?(fastFrames?16:33):(compact?50:32);
   if(!force&&!reduced.matches&&now-last<interval){schedule();return;}
   const dt=last?Math.min((now-last)/1000,.1):.033;last=now;
   const desiredSpeed={idle:.93,thinking:1.68,listening:1.13,speaking:1.56,error:.55}[mode];
@@ -83,7 +84,7 @@ function render(now,force=false){
   const size=Math.min(cap,Math.max(96,...active.map(({width})=>Math.ceil(width*pixelRatio))));
   if(engine.surface.width!==size||engine.surface.height!==size){engine.surface.width=size;engine.surface.height=size;}
   const paintStarted=typeof performance==='object'?performance.now():0;
-  paintNetwork(engine.ctx,size,network,{time:phase,energy:reduced.matches?0:energy,speechActivity:reduced.matches?0:speechActivity,waveform:reduced.matches?null:audioWaveform,liveTokens:tokenFlow.read(now,{reduced:reduced.matches}),impulse:reduced.matches?0:impulse,pointer:smoothPointer,reduced:reduced.matches,state:mode});
+  paintNetwork(engine.ctx,size,network,{time:phase,energy:reduced.matches?0:energy,speechActivity:reduced.matches?0:speechActivity,waveform:reduced.matches?null:audioWaveform,liveTokens:tokenFlow.read(now,{reduced:reduced.matches}),impulse:reduced.matches?0:impulse,pointer:smoothPointer,reduced:reduced.matches,state:mode,reveal:introReveal});
   for(const{node,ctx,width}of active){
     const targetSize=Math.min(cap,Math.max(48,Math.round(width*pixelRatio)));
     if(node.width!==targetSize||node.height!==targetSize){node.width=targetSize;node.height=targetSize;}
@@ -163,3 +164,4 @@ export function feedOrbText(text,options){tokenFlow.feed(text,options,performanc
 export function clearOrbText(){tokenFlow.clear();schedule();}
 export function getOrbDiagnostics(){return{renderer:'network-canvas',state:mode,frames:drawCount,visibilityReads,energy,paintMs:Number(paintCost.toFixed(2)),renderSize:engine?.surface.width,visible:visibleTargets().length,reducedMotion:reduced.matches,nodes:network.nodes.length,edges:network.edges.length,tokens:tokenFlow.diagnostics()};}
 export function activateOrb(){pulse();}
+export function setOrbIntro(value){introReveal=clamp(Number(value));schedule();}
