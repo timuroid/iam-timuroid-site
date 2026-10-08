@@ -7,6 +7,7 @@
 |---|---|
 | `public/index.html`, `styles.css`, `app.js` | Страница, кейсы, навигация, форма и черновик интервью |
 | `public/intro.js` | Последовательность появления первого экрана и её пропуск |
+| `public/motion-options.html`, `motion-options.css`, `motion-options.js` | Отдельное сравнение карандашной стрелки и появления кнопок; главная его не загружает |
 | `public/agent.js` | Чат, WebRTC, состояния микрофона и очередь ответов |
 | `public/network-orb.js`, `orb.js`, `orb-tokens.js` | Белый 3D-граф в жидком navy-силуэте, звук и живые фрагменты текста |
 | `public/admin.*`, `server/admin.mjs` | Панель владельца и закрытый API |
