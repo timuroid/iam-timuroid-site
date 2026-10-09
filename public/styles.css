@@ -199,7 +199,9 @@ h1[tabindex="-1"]:focus,h2[tabindex="-1"]:focus,h3[tabindex="-1"]:focus,#agent-t
 .agent-invite-arrow .pencil-guide path,.agent-invite-arrow g[filter] path{vector-effect:non-scaling-stroke}
 .agent-invite-arrow .pencil-guide{opacity:.24}
 .agent-invite-arrow.is-drawn,.agent-invite-arrow.is-drawing{opacity:1}
-.agent-entry-actions .agent-invite{max-width:320px;margin:0 auto;padding:10px 0 0;min-height:0;border:0;font-size:16px;line-height:1.5;color:var(--muted)}
+.agent-entry-actions .agent-invite{max-width:350px;margin:0 auto;padding:10px 0 0;min-height:0;border:0;font-size:18px;line-height:1.45;color:var(--muted)}
+.agent-invite-title{display:block;margin-bottom:7px;font-size:23px;font-weight:500;line-height:1.25;color:var(--brown)}
+.agent-invite-description{display:block;text-wrap:balance}
 .hero-actions{justify-content:center;align-items:center;flex-direction:row;gap:13px;margin-top:17px}
 .hero-actions .button,.hero-actions .text-link{min-height:54px;padding:14px 26px;font-size:16px}
 .hero-actions .text-link{border:0;border-radius:100px;background:#e9e0d488}
@@ -245,7 +247,8 @@ html.intro-pending.intro-cta .hero-actions .button,html.intro-pending.intro-cta 
   .hero-orb-button{width:min(100%,250px)}
   .agent-home-space{height:210px;flex-basis:210px}
   .agent-invite-arrow{top:-137px;left:0;width:94px;height:136px}
-  .agent-entry-actions .agent-invite{max-width:280px;font-size:14.5px}
+  .agent-entry-actions .agent-invite{max-width:320px;font-size:16px}
+  .agent-invite-title{font-size:21px}
   .agent-entry-actions{gap:13px}
   .agent-write{font-size:12px}
   .hero-actions{gap:9px;flex-wrap:nowrap;margin-top:12px}
