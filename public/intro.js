@@ -85,8 +85,10 @@ export function initHeroIntro(){
       later(()=>root.classList.add('intro-role-two'),1430);
       later(()=>root.classList.add('intro-personal'),1850);
       later(()=>root.classList.add('intro-hint'),2290);
-      later(()=>root.classList.add('intro-cta'),2670);
-      later(finish,4100);
+      // The invitation is visible first, then its hand-drawn arrow completes.
+      // Action buttons only begin after that one-second drawing is complete.
+      later(()=>root.classList.add('intro-cta'),3980);
+      later(finish,5350);
     }
     frame=requestAnimationFrame(form);
   }
