@@ -37,11 +37,13 @@ export function initHeroIntro(){
     window.removeEventListener('touchmove',finish);
     window.removeEventListener('pagehide',finish);
     window.removeEventListener('site-intro-timeout',finish);
+    window.removeEventListener('site-arrow-start',revealActions);
     document.removeEventListener('visibilitychange',onVisibility);
     reduced.removeEventListener('change',onMotionChange);
   }
   function onKeydown(event){if(['Escape','ArrowDown','PageDown',' '].includes(event.key))finish();}
   function onMotionChange(){if(reduced.matches)finish();}
+  function revealActions(){if(!stopped)root.classList.add('intro-cta');}
   function onVisibility(){if(document.hidden)finish();}
   function finishForNavigation(event){if(event.target instanceof Element&&event.target.closest('a[href],[data-open-agent]'))finish();}
   skip.addEventListener('click',finish);
@@ -54,6 +56,7 @@ export function initHeroIntro(){
   window.addEventListener('touchmove',finish,{passive:true});
   window.addEventListener('pagehide',finish);
   window.addEventListener('site-intro-timeout',finish);
+  window.addEventListener('site-arrow-start',revealActions);
   document.addEventListener('visibilitychange',onVisibility);
   reduced.addEventListener('change',onMotionChange);
 
@@ -85,10 +88,10 @@ export function initHeroIntro(){
       later(()=>root.classList.add('intro-role-two'),1430);
       later(()=>root.classList.add('intro-personal'),1850);
       later(()=>root.classList.add('intro-hint'),2290);
-      // The invitation is visible first, then its hand-drawn arrow completes.
-      // Action buttons only begin after that one-second drawing is complete.
-      later(()=>root.classList.add('intro-cta'),3980);
-      later(finish,5350);
+      // Buttons reveal together with the drawing; retain a fallback when the
+      // arrow is outside the viewport on a short mobile screen.
+      later(revealActions,2950);
+      later(finish,4250);
     }
     frame=requestAnimationFrame(form);
   }
