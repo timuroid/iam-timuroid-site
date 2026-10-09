@@ -196,13 +196,10 @@ h1[tabindex="-1"]:focus,h2[tabindex="-1"]:focus,h3[tabindex="-1"]:focus,#agent-t
 .agent-home-space{width:100%;max-width:490px;height:210px;flex:0 0 210px;padding-top:5px}
 .agent-entry-actions{position:relative;gap:18px}
 .agent-invite-arrow{position:absolute;top:-151px;left:15px;display:block;width:105px;height:150px;overflow:visible;color:#f4f4f4;mix-blend-mode:difference;pointer-events:none;opacity:0}
-.agent-invite-arrow path{stroke-dasharray:100;stroke-dashoffset:100;vector-effect:non-scaling-stroke}
+.agent-invite-arrow path{stroke-dashoffset:100;vector-effect:non-scaling-stroke}
 .agent-invite-arrow .pencil-guide{opacity:.24}
 .agent-invite-arrow.is-drawn,.agent-invite-arrow.is-drawing{opacity:1}
 .agent-invite-arrow.is-drawn path{stroke-dashoffset:0}
-.agent-invite-arrow.is-drawing .arrow-stem{animation:pencilDraw 1.8s cubic-bezier(.4,0,.5,1) forwards}
-.agent-invite-arrow.is-drawing .arrow-head{animation:pencilDraw .58s cubic-bezier(.4,0,.5,1) 1.8s forwards}
-@keyframes pencilDraw{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
 .agent-invite{font-size:16px}
 .orb-caption{margin-top:2px;max-width:none;font-size:14px;line-height:1.55}
 .hero-actions{justify-content:center;align-items:center;flex-direction:row;gap:13px;margin-top:17px}
