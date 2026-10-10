@@ -13,8 +13,10 @@
     "displayName": "МГТУ им. Н. Э. Баумана",
     "file": "public/logo-bmstu.png",
     "sourceImage": "https://mirror.bmstu.ru/assets/images/logo/logo.png",
+    "colorEmblemFile": "public/logo-bmstu-color.svg",
+    "colorEmblemSource": "https://upload.wikimedia.org/wikipedia/ru/0/01/Logo_Color_No-BG%282%29.svg",
     "officialSite": "https://bmstu.ru",
-    "note": "bmstu.ru redirects to official mirror.bmstu.ru; its header embeds this transparent PNG. 275 x 70."
+    "note": "bmstu.ru redirects to official mirror.bmstu.ru; its header embeds this transparent PNG. 275 x 70. The colour emblem is supplied separately by the user from Wikimedia and overlays only the crest; the original wordmark remains unchanged."
   },
   "whistling": {
     "displayName": "Whistling Production Bureau",
