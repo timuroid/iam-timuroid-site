@@ -195,7 +195,7 @@ h1[tabindex="-1"]:focus,h2[tabindex="-1"]:focus,h3[tabindex="-1"]:focus,#agent-t
 .hero-orb-button{width:min(100%,360px);max-width:none}
 .agent-home-space{width:100%;max-width:490px;height:210px;flex:0 0 210px;padding-top:5px}
 .agent-entry-actions{position:relative;gap:18px}
-.agent-invite-arrow{position:absolute;top:calc(50% - 138px);left:-92px;display:block;width:105px;height:150px;overflow:visible;color:var(--ink);pointer-events:none;opacity:0}
+.agent-invite-arrow{position:absolute;top:calc(50% - 129px);left:-84px;display:block;width:98px;height:140px;overflow:visible;color:var(--ink);pointer-events:none;opacity:0}
 .agent-invite-arrow .pencil-guide path,.agent-invite-arrow g[filter] path{vector-effect:non-scaling-stroke}
 .agent-invite-arrow .pencil-guide{opacity:.24}
 .agent-invite-arrow.is-drawn,.agent-invite-arrow.is-drawing{opacity:1}
@@ -246,7 +246,7 @@ html.intro-pending.intro-cta .hero-actions .button,html.intro-pending.intro-cta 
   .hero-art{width:min(100%,360px);max-width:360px}
   .hero-orb-button{width:min(100%,250px)}
   .agent-home-space{height:210px;flex-basis:210px}
-  .agent-invite-arrow{top:calc(50% - 125px);left:-83px;width:94px;height:136px}
+  .agent-invite-arrow{top:calc(50% - 125px);left:-79px;width:94px;height:136px}
   .agent-entry-actions .agent-invite{max-width:320px;font-size:16px}
   .agent-invite-title{font-size:21px}
   .agent-entry-actions{gap:13px}
@@ -256,7 +256,7 @@ html.intro-pending.intro-cta .hero-actions .button,html.intro-pending.intro-cta 
   .orb-caption{font-size:13px}
   .case-card.featured .case-visual{align-self:stretch;min-width:0}
 }
-@media(max-width:360px){.hero h1{font-size:52px}.hero-orb-button{width:min(100%,225px)}.agent-entry-actions{gap:8px}.agent-invite-arrow{top:calc(50% - 112px);left:-76px;width:85px;height:122px}.agent-invite{font-size:14px}.orb-caption{font-size:12.5px}.hero-actions .button,.hero-actions .text-link{min-height:48px;padding:12px 16px;font-size:13px}}
+@media(max-width:360px){.hero h1{font-size:52px}.hero-orb-button{width:min(100%,225px)}.agent-entry-actions{gap:8px}.agent-invite-arrow{top:calc(50% - 112px);left:-72px;width:85px;height:122px}.agent-invite{font-size:14px}.orb-caption{font-size:12.5px}.hero-actions .button,.hero-actions .text-link{min-height:48px;padding:12px 16px;font-size:13px}}
 @media(prefers-reduced-motion:reduce){.hero-actions .button,.hero-actions .text-link{opacity:1!important;transform:none!important;clip-path:none!important}}
 @media(max-height:690px) and (min-width:651px){.hero{gap:6px;padding-block:22px}.hero h1{font-size:70px}.hero-description{font-size:19px;margin-top:9px}.hero-personal{margin-top:5px}.hero-orb-button{width:min(100%,260px)}}
 
